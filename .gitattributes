@@ -1,0 +1,71 @@
+# Basic .gitattributes for a Python repository.
+
+# Default
+# =======
+* text=auto
+
+# Python source files
+# ===================
+*.pxd    text diff=python eol=lf
+*.py     text diff=python eol=lf
+*.py3    text diff=python eol=lf
+*.pyw    text diff=python eol=lf
+*.pyx    text diff=python eol=lf
+*.pyz    text diff=python eol=lf
+*.pyi    text diff=python eol=lf
+
+# Jupyter notebooks
+# =================
+*.ipynb  text eol=lf
+
+# Documentation
+# =============
+*.md     text eol=lf
+*.txt    text eol=lf
+*.rst    text eol=lf
+
+# Configuration files
+# ===================
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.toml   text eol=lf
+*.json   text eol=lf
+*.ini    text eol=lf
+*.cfg    text eol=lf
+
+# Scripts
+# =======
+*.sh     text eol=lf
+*.bat    text eol=crlf
+*.ps1    text eol=crlf
+
+# Data files
+# ==========
+*.csv    text eol=lf
+
+# Binary files
+# ============
+*.db     binary
+*.p      binary
+*.pkl    binary
+*.pickle binary
+*.pyc    binary export-ignore
+*.pyo    binary export-ignore
+*.pyd    binary
+
+# Documents
+# =========
+*.pdf    binary
+*.docx   binary
+*.xlsx   binary
+*.pptx   binary
+
+# Images
+# ======
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.webp   binary
+*.svg    text eol=lf
