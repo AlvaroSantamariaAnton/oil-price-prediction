@@ -218,3 +218,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local planning and assistant continuity documents
+/AGENTS.md
+/HOJA_DE_RUTA.md
+/ESTADO_PROYECTO.md
+
+# Local downloads and derived data; initial CSV stays tracked
+/data/raw/*
+!/data/raw/.gitkeep
+/data/processed/*
+!/data/processed/.gitkeep
+
+# Local tests and reports (explicit project decision)
+/tests/
+/reports/
