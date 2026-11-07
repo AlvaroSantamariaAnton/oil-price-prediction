@@ -1,7 +1,7 @@
 # oil-price-prediction
 
 Proyecto académico de predicción del Brent mediante RNN, LSTM y GRU.
-Auditoría de fuentes completada; siguiente fase: diseño del experimento.
+Auditoría de fuentes completada y [protocolo experimental definido](docs/protocolo_experimento.md).
 Todavía no hay modelos entrenados ni dataset preparado para entrenamiento.
 
 ## Notebook de auditoría
@@ -26,9 +26,7 @@ un diagnóstico saneado. Cada nueva ejecución repite todas las fuentes desde ce
 
 Pegar el nombre de la carpeta completa en `BUNDLE`, en la primera celda del
 notebook, reiniciar el kernel y ejecutar desde el principio. Ya no lee ZIP ni
-archivos de Descargas. Las salidas anteriores se han retirado al migrar el
-notebook: no representan la nueva descarga. Validar el nuevo paquete y la
-ejecución completa antes de decidir eliminar datos antiguos.
+archivos de Descargas. Las salidas guardadas corresponden a la ejecución con el paquete de referencia.
 
 Aunque se mantenga el corte, raw/OPEP/BCE pueden contener revisiones actuales;
 el XML y la tabla pueden incluir fechas posteriores que deben filtrarse.
@@ -99,15 +97,14 @@ pandas/yfinance, sin unir calendarios ni rellenar valores. No son copias HTTP.
 Si una fuente falla, conserva las obtenidas, marca `incomplete` y termina con
 código 1. Una ejecución interrumpida puede quedar `in_progress`. `complete`
 significa éxito de las 12 series configuradas, no validación económica ni
-cobertura total. La cesta OPEP todavía no está incorporada.
+cobertura total. La descarga unificada añade la cesta OPEP por separado.
 
 La fecha final solicitada no garantiza observaciones hasta ese día. La fecha de
 observación no identifica su publicación. Los proveedores pueden revisar datos:
 repetir el mismo periodo no garantiza un snapshot idéntico.
 
 `data/petroleo_dataset.csv` conserva la descarga inicial del 4/11/2026, rellenada
-por el script original. El nuevo script no la modifica. Aún no se ha elegido
-un nuevo snapshot para los experimentos.
+por el script original. La descarga unificada conserva una copia para la auditoría.
 
 `data/processed/` está reservado para la preparación posterior. Las reglas de
 relleno y la tabla de seguimiento (valor original, relleno, fecha de procedencia)

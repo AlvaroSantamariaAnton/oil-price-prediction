@@ -230,6 +230,6 @@ __marimo__/
 /data/processed/*
 !/data/processed/.gitkeep
 
-# Local tests and reports (explicit project decision)
+# Local tests and experiment runs
 /tests/
-/reports/
+/reports/experimentos/E[0-9]*/

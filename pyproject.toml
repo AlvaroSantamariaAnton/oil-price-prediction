@@ -6,10 +6,11 @@ authors = [
     {name = "Your Name",email = "you@example.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.15"
 dependencies = [
     "pandas (>=3.1.0,<4.0.0)",
-    "yfinance (>=1.8.0,<2.0.0)"
+    "yfinance (>=1.8.0,<2.0.0)",
+    "torch (==2.11.0+cu128)"
 ]
 
 
@@ -21,6 +22,13 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 package-mode = false
 
+[[tool.poetry.source]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+priority = "explicit"
+
+[tool.poetry.dependencies]
+torch = {source = "pytorch-cu128"}
 [dependency-groups]
 dev = [
     "matplotlib (>=3.11.2,<4.0.0)",

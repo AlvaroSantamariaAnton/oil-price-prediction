@@ -1,0 +1,30 @@
+{
+  "experimento": null,
+  "snapshot": null,
+  "protocolo": null,
+  "biblioteca": null,
+  "dispositivo": null,
+  "ventana_fechas_brent": null,
+  "horizontes_fechas_brent": [],
+  "arquitecturas": [],
+  "capas_recurrentes": null,
+  "unidades_recurrentes": [],
+  "validacion": {
+    "tipo": null,
+    "primer_anio_entrenamiento": null,
+    "anios_de_prediccion": []
+  },
+  "parada_temprana": {
+    "fraccion_final_cronologica": null,
+    "metrica": null,
+    "max_epocas": null,
+    "paciencia_epocas": null,
+    "recuperar_mejores_pesos": null
+  },
+  "escalado": null,
+  "perdida": null,
+  "optimizador": null,
+  "tasa_aprendizaje": null,
+  "tamano_lote": null,
+  "semilla": null
+}
