@@ -16,7 +16,7 @@ Cada muestra contiene **60 fechas consecutivas** del índice del Brent spot y te
 | Yahoo: futuros Brent/WTI (OHLC y volumen), cierres de cobre, oro e índice dólar | Fila disponible por supuesto desde la jornada siguiente. Precio admisible hasta edad 5. El volumen ausente queda sin rellenar. |
 | Cesta OPEP | Edad entre 2 y 5 días inclusive. Conservar como ausentes las fechas anteriores al comienzo del XML en 2003. |
 
-La edad se mide desde la observación en días de lunes a viernes. Cada entrada lleva valor escalado e indicador de disponibilidad. Para una ausencia se usa el par (0, 0) después del escalado. Se registra procedencia, edad y motivo de ausencia. El escalador aprende exclusivamente de los valores admisibles de la parte de aprendizaje de cada corte. Los intervalos ALFRED de la auditoría sirven de contraste para los supuestos.
+La edad se mide desde la observación en días de lunes a viernes. Cada entrada lleva valor escalado e indicador de disponibilidad. Para una ausencia se usa el par (0, 0) después del escalado. Se registra procedencia, edad y motivo de ausencia. Para cada corte y horizonte se estandariza cada variable de entrada con (valor − media) / desviación típica. La media y la desviación se calculan exclusivamente con valores admisibles del tramo de aprendizaje y se reutilizan al validar o predecir. Los intervalos ALFRED de la auditoría sirven de contraste para los supuestos.
 
 ## Cómo se entrena y se compara
 
@@ -43,6 +43,6 @@ Se hacen **9 ajustes finales**, uno por arquitectura y horizonte, usando los eje
 
 La tabla final presentará por arquitectura y horizonte el número de orígenes evaluados, MSE, MAE, RMSE, mejora frente al ingenuo, parámetros y tiempo de entrenamiento. Para los intervalos se informará de su cobertura observada y su anchura. El 80 % es el nivel nominal. Los resultados de test se reservan para comunicar el desempeño de las decisiones ya fijadas.
 
-**Pendiente antes del primer entrenamiento.** Concretar la transformación de escala, la función de pérdida, el optimizador y su tasa de aprendizaje, el tamaño de lote y el valor de la semilla común. Registrar la biblioteca, el dispositivo y sus versiones. Los entrenamientos y sus métricas todavía están pendientes.
+**Pendiente antes del primer entrenamiento.** Concretar la función de pérdida, el optimizador y su tasa de aprendizaje, el tamaño de lote y el valor de la semilla común. Registrar la biblioteca, el dispositivo y sus versiones. Los entrenamientos y sus métricas todavía están pendientes.
 
 **Al interpretar los resultados.** Los retrasos se eligieron tras auditar fechas de publicación del paquete completo, incluidas fechas posteriores a 2022. La evaluación es retrospectiva: se reservan los errores de predicción del test para el informe final, pero el diseño ya utilizó información sobre el calendario de publicación de ese periodo. Además, los mismos cortes de validación sirven para elegir tamaños y estimar los márgenes. La cobertura en test es la comprobación externa del intervalo nominal.
