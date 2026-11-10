@@ -166,7 +166,7 @@ def main():
     if objetivo not in OBJETIVOS:
         parser.error(f"objetivo debe ser uno de {OBJETIVOS}.")
     protocolo = (ROOT / c["protocolo"]).read_bytes()
-    datos, fechas, ref, escalador, base = cargar_datos(a.corte, a.horizonte, objetivo)
+    datos, fechas, ref, escalador, brent_base = cargar_datos(a.corte, a.horizonte, objetivo)
     experimento = ROOT / "reports/experimentos" / c["experimento"]
     base = experimento / "validacion"
     base.mkdir(parents=True, exist_ok=True)
@@ -186,7 +186,7 @@ def main():
     modelo = Regresor(a.arquitectura, len(escalador["orden_entradas"]), a.unidades).cuda()
     datos = {k: (x.cuda(), y.cuda()) for k, (x, y) in datos.items()}
     historial, mejor, segundos = ajustar(modelo, datos, c)
-    ref["prediccion_red"] = predecir(modelo, datos["validacion"][0], c["tamano_lote"]).cpu().numpy() + base
+    ref["prediccion_red"] = predecir(modelo, datos["validacion"][0], c["tamano_lote"]).cpu().numpy() + brent_base
     error = ref.prediccion_red - ref.brent_objetivo
     mae, mse = float(error.abs().mean()), float((error ** 2).mean())
     ingenuo = float((ref.prediccion_ingenua - ref.brent_objetivo).abs().mean())
