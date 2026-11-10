@@ -45,6 +45,14 @@ La tabla final presentará por arquitectura y horizonte el número de orígenes 
 
 **Pérdida de entrenamiento.** RNN, LSTM y GRU minimizan el MAE en USD/barril en los tres horizontes. En todos los ajustes se usa Adam con una tasa de aprendizaje inicial de 0,001 y lotes de 32 ventanas. Se aprovecha el último lote de cada época aunque contenga menos de 32 ventanas.
 
-**Reproducibilidad.** Al comienzo de cada ajuste se restablece la semilla común a 42 antes de inicializar el modelo. En cada ejecución se registran la biblioteca, el dispositivo y sus versiones. Los entrenamientos y sus métricas todavía están pendientes.
+**Reproducibilidad.** Al comienzo de cada ajuste se restablece la semilla común a 42 antes de inicializar el modelo. En cada ejecución se registran la biblioteca, el dispositivo y sus versiones.
+
+## Experimentos de validación
+
+**E1 (objetivo `precio`).** Cada red predice directamente el precio spot del Brent en la fecha objetivo. Completados los 72 ajustes de validación. Puntuación global con los tamaños seleccionados: RNN −16,79 %, GRU −22,23 % y LSTM −53,07 %. Ninguna arquitectura supera en media a la referencia ingenua.
+
+**E2 (objetivo `cambio`).** Decidido antes de consultar el test y con los resultados de E1 ya conocidos. Cada red predice la diferencia entre el precio objetivo y el último Brent admisible en el origen, que es la predicción ingenua. La predicción de precio suma ese Brent al cambio previsto. Con salida nula, la red reproduciría exactamente la referencia ingenua. El MAE del cambio coincide con el MAE del precio, así que la pérdida, la parada temprana y las métricas siguen en USD/barril. Se excluyen del aprendizaje los orígenes sin Brent admisible: 14, 26 y 18 por corte a +5, +63 y +252. Los tramos interno y de validación no cambian. El resto de reglas, la cuadrícula de 72 ajustes y los escaladores son los de E1.
+
+**Selección entre experimentos.** Se calcula la puntuación global de cada arquitectura en E1 y en E2 con la misma regla. Entre los seis candidatos se elige el de mayor puntuación, aplicando el mismo desempate por tiempo de entrenamiento cuando la diferencia es de un punto porcentual o menos. Elegir entre dos experimentos con la misma validación hace más optimista la puntuación seleccionada. La evaluación de test sigue siendo la comprobación independiente.
 
 **Al interpretar los resultados.** Los retrasos se eligieron tras auditar fechas de publicación del paquete completo, incluidas fechas posteriores a 2022. La evaluación es retrospectiva: se reservan los errores de predicción del test para el informe final, pero el diseño ya utilizó información sobre el calendario de publicación de ese periodo. Además, los mismos cortes de validación sirven para elegir tamaños y estimar los márgenes. La cobertura en test es la comprobación externa del intervalo nominal.

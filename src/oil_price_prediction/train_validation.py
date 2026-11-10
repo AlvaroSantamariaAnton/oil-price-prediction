@@ -26,6 +26,9 @@ from scripts.prepare_windows import ROOT, SNAPSHOT, VENTANA
 
 
 REDES = {"RNN": nn.RNN, "LSTM": nn.LSTM, "GRU": nn.GRU}
+# precio: la red predice el Brent objetivo (E1; también si el campo falta).
+# cambio: predice objetivo − último Brent admisible en el origen y se le suma ese Brent.
+OBJETIVOS = ("precio", "cambio")
 
 
 class Regresor(nn.Module):
@@ -39,7 +42,7 @@ class Regresor(nn.Module):
         return self.salida(secuencia[:, -1]).squeeze(-1)
 
 
-def cargar_datos(corte, h):
+def cargar_datos(corte, h, objetivo):
     carpeta = ROOT / "data/processed" / SNAPSHOT
     with ZipFile(carpeta / "escalado_validacion.zip") as z:
         base = f"{corte}/h{h:03d}/"
@@ -54,18 +57,34 @@ def cargar_datos(corte, h):
     ventanas = pd.read_csv(carpeta / "ventanas_objetivos.csv")
     muestras = particiones.merge(ventanas.loc[ventanas.horizonte == h], on=["horizonte", "fecha_origen"],
                                  how="left", validate="one_to_one").sort_values("fecha_origen")
-    tensores, fechas = {}, {}
+    if objetivo == "cambio":
+        diario = pd.read_csv(carpeta / "entradas_diarias.csv", usecols=["fecha", "brent", "brent_disponible"])
+        muestras = muestras.merge(diario.rename(columns={"fecha": "fecha_origen", "brent_disponible": "base_disponible"}),
+                                  on="fecha_origen", how="left", validate="many_to_one")
+        if not muestras.base_disponible.eq(muestras.brent_disponible).all():
+            raise ValueError("La disponibilidad del Brent difiere entre particiones y entradas diarias.")
+        # Sin Brent admisible en el origen no hay cambio definido: solo puede faltar en aprendizaje.
+        sin_base = muestras.brent_disponible.ne(1)
+        if (sin_base & muestras.tramo.ne("aprendizaje")).any():
+            raise ValueError("Falta el Brent admisible en un origen interno o de validación.")
+        muestras = muestras.loc[~sin_base]
+        if not np.isfinite(muestras.brent).all():
+            raise ValueError("Brent admisible no finito en el origen.")
+    tensores, fechas, bases = {}, {}, {}
     for tramo in ("aprendizaje", "interno", "validacion"):
         filas = muestras.loc[muestras.tramo == tramo]
         if filas.empty or filas.fila_origen.isna().any():
             raise ValueError(f"Faltan ventanas en {tramo}.")
+        base = (filas.brent if objetivo == "cambio" else pd.Series(0.0, index=filas.index)).to_numpy(dtype="float32")
         ids = filas.fila_inicio.to_numpy()[:, None] + np.arange(VENTANA)
         posiciones = entradas.index.get_indexer(ids.ravel()).reshape(ids.shape)
         if (posiciones < 0).any() or not np.array_equal(ids[:, -1], filas.fila_origen):
             raise ValueError(f"Ventana incompleta en {tramo}.")
-        tensores[tramo] = (torch.from_numpy(valores[posiciones]),
-                           torch.tensor(filas.brent_objetivo.to_numpy(), dtype=torch.float32))
-        fechas[tramo] = filas
+        y = torch.tensor(filas.brent_objetivo.to_numpy(), dtype=torch.float32)
+        if objetivo == "cambio":
+            y = y - torch.from_numpy(base)
+        tensores[tramo] = (torch.from_numpy(valores[posiciones]), y)
+        fechas[tramo], bases[tramo] = filas, base
     with ZipFile(carpeta / "referencia_ingenua_validacion.zip") as z:
         with z.open("predicciones.csv") as archivo:
             referencia = pd.read_csv(archivo)
@@ -73,7 +92,9 @@ def cargar_datos(corte, h):
     ref = referencia.loc[(referencia.corte == corte) & (referencia.horizonte == h)].set_index("fecha_origen").sort_index()
     if not anual.index.equals(ref.index) or not np.array_equal(anual.brent_objetivo, ref.brent_objetivo):
         raise ValueError("Las muestras de validación difieren de la referencia ingenua.")
-    return tensores, fechas, ref.copy(), escalador
+    if objetivo == "cambio" and not np.array_equal(bases["validacion"], ref.prediccion_ingenua.to_numpy(dtype="float32")):
+        raise ValueError("El Brent base difiere de la predicción ingenua.")
+    return tensores, fechas, ref.copy(), escalador, bases["validacion"]
 
 
 @torch.inference_mode()
@@ -141,8 +162,11 @@ def main():
         parser.error("Revisar validación, parada temprana o parámetros de optimización.")
     if not re.fullmatch(r"E[0-9]+", c["experimento"] or "") or not torch.cuda.is_available():
         parser.error("Se requiere un nombre de experimento E<n> y CUDA disponible.")
+    objetivo = c.get("objetivo", "precio")
+    if objetivo not in OBJETIVOS:
+        parser.error(f"objetivo debe ser uno de {OBJETIVOS}.")
     protocolo = (ROOT / c["protocolo"]).read_bytes()
-    datos, fechas, ref, escalador = cargar_datos(a.corte, a.horizonte)
+    datos, fechas, ref, escalador, base = cargar_datos(a.corte, a.horizonte, objetivo)
     experimento = ROOT / "reports/experimentos" / c["experimento"]
     base = experimento / "validacion"
     base.mkdir(parents=True, exist_ok=True)
@@ -162,11 +186,11 @@ def main():
     modelo = Regresor(a.arquitectura, len(escalador["orden_entradas"]), a.unidades).cuda()
     datos = {k: (x.cuda(), y.cuda()) for k, (x, y) in datos.items()}
     historial, mejor, segundos = ajustar(modelo, datos, c)
-    ref["prediccion_red"] = predecir(modelo, datos["validacion"][0], c["tamano_lote"]).cpu().numpy()
+    ref["prediccion_red"] = predecir(modelo, datos["validacion"][0], c["tamano_lote"]).cpu().numpy() + base
     error = ref.prediccion_red - ref.brent_objetivo
     mae, mse = float(error.abs().mean()), float((error ** 2).mean())
     ingenuo = float((ref.prediccion_ingenua - ref.brent_objetivo).abs().mean())
-    registro = dict(id=identificador, snapshot=SNAPSHOT, arquitectura=a.arquitectura, unidades=a.unidades,
+    registro = dict(id=identificador, snapshot=SNAPSHOT, objetivo=objetivo, arquitectura=a.arquitectura, unidades=a.unidades,
                     horizonte=a.horizonte, corte=a.corte, configuracion="../../config.json",
                     parametros=sum(p.numel() for p in modelo.parameters()), mejor_epoca=mejor,
                     segundos_entrenamiento=segundos, mae=mae, mse=mse, rmse=mse**0.5, mae_ingenuo=ingenuo,
