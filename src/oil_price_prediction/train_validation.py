@@ -28,7 +28,18 @@ from scripts.prepare_windows import ROOT, SNAPSHOT, VENTANA
 REDES = {"RNN": nn.RNN, "LSTM": nn.LSTM, "GRU": nn.GRU}
 # precio: la red predice el Brent objetivo (E1; también si el campo falta).
 # cambio: predice objetivo − último Brent admisible en el origen y se le suma ese Brent.
-OBJETIVOS = ("precio", "cambio")
+# porcentaje: predice 100 · (objetivo − Brent base) / Brent base; la pérdida se calcula en
+# porcentaje, pero la parada temprana y las métricas siguen en USD/barril.
+OBJETIVOS = ("precio", "cambio", "porcentaje")
+
+
+def a_precio(salida, base, objetivo):
+    """Convierte la salida de la red (o el objetivo transformado) en USD/barril."""
+    if objetivo == "precio":
+        return salida
+    if objetivo == "cambio":
+        return salida + base
+    return base * (1 + salida / 100)
 
 
 class Regresor(nn.Module):
@@ -57,7 +68,7 @@ def cargar_datos(corte, h, objetivo):
     ventanas = pd.read_csv(carpeta / "ventanas_objetivos.csv")
     muestras = particiones.merge(ventanas.loc[ventanas.horizonte == h], on=["horizonte", "fecha_origen"],
                                  how="left", validate="one_to_one").sort_values("fecha_origen")
-    if objetivo == "cambio":
+    if objetivo != "precio":
         diario = pd.read_csv(carpeta / "entradas_diarias.csv", usecols=["fecha", "brent", "brent_disponible"])
         muestras = muestras.merge(diario.rename(columns={"fecha": "fecha_origen", "brent_disponible": "base_disponible"}),
                                   on="fecha_origen", how="left", validate="many_to_one")
@@ -68,14 +79,14 @@ def cargar_datos(corte, h, objetivo):
         if (sin_base & muestras.tramo.ne("aprendizaje")).any():
             raise ValueError("Falta el Brent admisible en un origen interno o de validación.")
         muestras = muestras.loc[~sin_base]
-        if not np.isfinite(muestras.brent).all():
-            raise ValueError("Brent admisible no finito en el origen.")
+        if not np.isfinite(muestras.brent).all() or not (muestras.brent > 0).all():
+            raise ValueError("Brent admisible no finito o no positivo en el origen.")
     tensores, fechas, bases = {}, {}, {}
     for tramo in ("aprendizaje", "interno", "validacion"):
         filas = muestras.loc[muestras.tramo == tramo]
         if filas.empty or filas.fila_origen.isna().any():
             raise ValueError(f"Faltan ventanas en {tramo}.")
-        base = (filas.brent if objetivo == "cambio" else pd.Series(0.0, index=filas.index)).to_numpy(dtype="float32")
+        base = (filas.brent if objetivo != "precio" else pd.Series(0.0, index=filas.index)).to_numpy(dtype="float32")
         ids = filas.fila_inicio.to_numpy()[:, None] + np.arange(VENTANA)
         posiciones = entradas.index.get_indexer(ids.ravel()).reshape(ids.shape)
         if (posiciones < 0).any() or not np.array_equal(ids[:, -1], filas.fila_origen):
@@ -83,6 +94,8 @@ def cargar_datos(corte, h, objetivo):
         y = torch.tensor(filas.brent_objetivo.to_numpy(), dtype=torch.float32)
         if objetivo == "cambio":
             y = y - torch.from_numpy(base)
+        elif objetivo == "porcentaje":
+            y = 100 * (y - torch.from_numpy(base)) / torch.from_numpy(base)
         tensores[tramo] = (torch.from_numpy(valores[posiciones]), y)
         fechas[tramo], bases[tramo] = filas, base
     with ZipFile(carpeta / "referencia_ingenua_validacion.zip") as z:
@@ -92,9 +105,9 @@ def cargar_datos(corte, h, objetivo):
     ref = referencia.loc[(referencia.corte == corte) & (referencia.horizonte == h)].set_index("fecha_origen").sort_index()
     if not anual.index.equals(ref.index) or not np.array_equal(anual.brent_objetivo, ref.brent_objetivo):
         raise ValueError("Las muestras de validación difieren de la referencia ingenua.")
-    if objetivo == "cambio" and not np.array_equal(bases["validacion"], ref.prediccion_ingenua.to_numpy(dtype="float32")):
+    if objetivo != "precio" and not np.array_equal(bases["validacion"], ref.prediccion_ingenua.to_numpy(dtype="float32")):
         raise ValueError("El Brent base difiere de la predicción ingenua.")
-    return tensores, fechas, ref.copy(), escalador, bases["validacion"]
+    return tensores, fechas, ref.copy(), escalador, bases
 
 
 @torch.inference_mode()
@@ -103,7 +116,7 @@ def predecir(modelo, entradas, lote):
     return torch.cat([modelo(x) for x in entradas.split(lote)])
 
 
-def ajustar(modelo, datos, config):
+def ajustar(modelo, datos, config, objetivo="precio", bases=None):
     regla = config["parada_temprana"]
     lote = config["tamano_lote"]
     optimizador = torch.optim.Adam(modelo.parameters(), lr=config["tasa_aprendizaje"])
@@ -120,8 +133,14 @@ def ajustar(modelo, datos, config):
             perdida = nn.functional.l1_loss(modelo(x[indices]), y[indices])
             perdida.backward()
             optimizador.step()
-        mae = nn.functional.l1_loss(predecir(modelo, x, lote), y).item()
-        interno = nn.functional.l1_loss(predecir(modelo, xi, lote), yi).item()
+        if objetivo == "porcentaje":
+            # Pérdida en porcentaje; seguimiento y parada en USD/barril.
+            b, bi = bases["aprendizaje"], bases["interno"]
+            mae = nn.functional.l1_loss(a_precio(predecir(modelo, x, lote), b, objetivo), a_precio(y, b, objetivo)).item()
+            interno = nn.functional.l1_loss(a_precio(predecir(modelo, xi, lote), bi, objetivo), a_precio(yi, bi, objetivo)).item()
+        else:
+            mae = nn.functional.l1_loss(predecir(modelo, x, lote), y).item()
+            interno = nn.functional.l1_loss(predecir(modelo, xi, lote), yi).item()
         if not np.isfinite([mae, interno]).all():
             raise ValueError("MAE no finito durante el entrenamiento.")
         historial.append((epoca, mae, interno))
@@ -167,6 +186,7 @@ def main():
         parser.error(f"objetivo debe ser uno de {OBJETIVOS}.")
     protocolo = (ROOT / c["protocolo"]).read_bytes()
     datos, fechas, ref, escalador, brent_base = cargar_datos(a.corte, a.horizonte, objetivo)
+    bases_tramo = {k: torch.from_numpy(v).cuda() for k, v in brent_base.items()}
     experimento = ROOT / "reports/experimentos" / c["experimento"]
     base = experimento / "validacion"
     base.mkdir(parents=True, exist_ok=True)
@@ -185,8 +205,12 @@ def main():
     torch.manual_seed(c["semilla"])
     modelo = Regresor(a.arquitectura, len(escalador["orden_entradas"]), a.unidades).cuda()
     datos = {k: (x.cuda(), y.cuda()) for k, (x, y) in datos.items()}
-    historial, mejor, segundos = ajustar(modelo, datos, c)
-    ref["prediccion_red"] = predecir(modelo, datos["validacion"][0], c["tamano_lote"]).cpu().numpy() + brent_base
+    historial, mejor, segundos = ajustar(modelo, datos, c, objetivo, bases_tramo)
+    salida = predecir(modelo, datos["validacion"][0], c["tamano_lote"]).cpu().numpy()
+    if objetivo == "porcentaje":
+        ref["prediccion_red"] = a_precio(salida, brent_base["validacion"], objetivo)
+    else:
+        ref["prediccion_red"] = salida + brent_base["validacion"]
     error = ref.prediccion_red - ref.brent_objetivo
     mae, mse = float(error.abs().mean()), float((error ** 2).mean())
     ingenuo = float((ref.prediccion_ingenua - ref.brent_objetivo).abs().mean())
