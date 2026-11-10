@@ -43,6 +43,8 @@ Se hacen **9 ajustes finales**, uno por arquitectura y horizonte, usando los eje
 
 La tabla final presentará por arquitectura y horizonte el número de orígenes evaluados, MSE, MAE, RMSE, mejora frente al ingenuo, parámetros y tiempo de entrenamiento. Para los intervalos se informará de su cobertura observada y su anchura. El 80 % es el nivel nominal. Los resultados de test se reservan para comunicar el desempeño de las decisiones ya fijadas.
 
-**Pendiente antes del primer entrenamiento.** Concretar la función de pérdida, el optimizador y su tasa de aprendizaje, el tamaño de lote y el valor de la semilla común. Registrar la biblioteca, el dispositivo y sus versiones. Los entrenamientos y sus métricas todavía están pendientes.
+**Pérdida de entrenamiento.** RNN, LSTM y GRU minimizan el MAE en USD/barril en los tres horizontes. En todos los ajustes se usa Adam con una tasa de aprendizaje inicial de 0,001 y lotes de 32 ventanas. Se aprovecha el último lote de cada época aunque contenga menos de 32 ventanas.
+
+**Reproducibilidad.** Al comienzo de cada ajuste se restablece la semilla común a 42 antes de inicializar el modelo. En cada ejecución se registran la biblioteca, el dispositivo y sus versiones. Los entrenamientos y sus métricas todavía están pendientes.
 
 **Al interpretar los resultados.** Los retrasos se eligieron tras auditar fechas de publicación del paquete completo, incluidas fechas posteriores a 2022. La evaluación es retrospectiva: se reservan los errores de predicción del test para el informe final, pero el diseño ya utilizó información sobre el calendario de publicación de ese periodo. Además, los mismos cortes de validación sirven para elegir tamaños y estimar los márgenes. La cobertura en test es la comprobación externa del intervalo nominal.
