@@ -95,6 +95,20 @@ Sin embargo, el ingenuo con futuros obtiene por sí solo una puntuación de +10,
 
 **Ajuste final** (`scripts/prepare_splits.py --fase final`, `scripts/prepare_scalers.py --entradas variaciones --fase final` y `src/oil_price_prediction/train_final.py`). La frontera es el 02/01/2023 y se aplican las mismas reglas de aprendizaje, tramo interno y escalado que en validación. Al reservar el último 15 % para la parada temprana, el tramo interno cubre aproximadamente 2019–2022 y los modelos no aprenden directamente de la pandemia ni de 2022. Se mantiene por coherencia con la validación y se documenta como limitación. Los 27 ajustes se guardan en `reports/experimentos/final/` con una única configuración. El script de ajuste no calcula ninguna métrica de test.
 
+## Resultado del test (evaluado una vez el 11/11/2026)
+
+`scripts/evaluate_test.py` evalúa la media de las tres semillas sobre los orígenes del 02/01/2023 en adelante. La tabla completa está en `reports/evaluacion_test.csv` y las figuras en `reports/figuras/E14-E16/test/`. Las mejoras se calculan con el MAE de todos los orígenes de test juntos. Los intervalos de confianza se obtienen por bloques de longitud igual al horizonte.
+
+| Horizonte | Orígenes | Ingenuo con futuros frente al ingenuo | RNN seleccionada: frente al ingenuo / frente al ingenuo con futuros | LSTM | GRU |
+|---|---|---|---|---|---|
+| +5 | 967 | +20,46 % (p < 0,001) | +18,87 % / −1,99 % (IC95 [−3,90; −0,30]) | +18,93 % / −1,91 % | +18,84 % / −2,03 % |
+| +63 | 909 | +2,16 % (p 0,159) | −2,22 % / −4,48 % | −1,34 % / −3,58 % | −2,10 % / −4,36 % |
+| +252 | 726 | +0,09 % | −7,60 % / −7,70 % (IC95 [−47,5; 52,2]) | +7,35 % / +7,26 % (p 0,014) | −1,47 % / −1,56 % |
+
+A +5, las redes y el ingenuo con futuros aciertan la dirección en torno al 70 % de los orígenes. La cobertura de los intervalos del 80 % de la RNN es del 64 % a +5, del 78 % a +63 y del 86 % a +252. Es especialmente baja en los años recientes de cada horizonte: 34 % en 2026 a +5, 15 % en 2026 a +63 y 55 % en 2025 a +252, cuando el precio se movió muy por encima de lo previsto.
+
+**Conclusión.** El test confirma la validación. A +5, las redes conservan la mejora sobre el ingenuo que aporta la actualización con futuros, pero no la superan: la RNN seleccionada queda ligeramente por debajo del ingenuo con futuros, con una diferencia estadísticamente significativa. A +63 ninguna red mejora a ninguna de las dos referencias. A +252, solo la LSTM mejora a ambas, pero no fue la seleccionada, en validación no lo hacía y tres años de test equivalen aproximadamente a tres observaciones independientes. No se cambia la selección a la vista del test. Los márgenes fijos en USD calibrados en validación se quedan cortos en los periodos de mayor volatilidad.
+
 **Trayectoria de la validación**, 13 + 3 experimentos y 1.080 ajustes válidos:
 - Precio (E1): las redes se anclan a un nivel.
 - Cambio (E2–E4, con promedio de semillas).

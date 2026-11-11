@@ -111,7 +111,7 @@ def dibujar(tablas, tamanos, principal, margenes, carpeta, titulo, media):
     `margenes` da el margen del intervalo por (arquitectura, horizonte). Devuelve el resumen de dirección.
     """
     carpeta.mkdir(parents=True, exist_ok=True)
-    periodos = sorted(tablas[principal, HORIZONTES[0]].corte.unique())
+
     etiqueta = lambda a, h: f"{a} ({tamanos[a, h]} u)"
 
     # 1. Precio real frente a previsto con la banda del intervalo (arquitectura principal).
@@ -158,9 +158,11 @@ def dibujar(tablas, tamanos, principal, margenes, carpeta, titulo, media):
     columna = {"Ingenuo": "error_ingenuo", "Ingenuo con futuros": "error_futuros"}
     ancho = 0.8 / len(series)
     for ax, h in zip(ejes, HORIZONTES):
+        # Cada horizonte tiene sus propios periodos (en test, +252 termina antes que +5).
+        periodos = sorted(tablas[principal, h].corte.unique())
         for i, s in enumerate(series):
             t = tablas[s, h] if s in ARQUITECTURAS else tablas[principal, h]
-            valores = t.groupby("corte")[columna.get(s, "error")].mean()
+            valores = t.groupby("corte")[columna.get(s, "error")].mean().reindex(periodos)
             ax.bar(np.arange(len(periodos)) + (i - (len(series) - 1) / 2) * ancho, valores.to_numpy(), ancho * 0.9,
                    color=COLORES[s], label=etiqueta(s, h) if s in ARQUITECTURAS else s)
         ax.set_xticks(np.arange(len(periodos)), [str(c) for c in periodos])
