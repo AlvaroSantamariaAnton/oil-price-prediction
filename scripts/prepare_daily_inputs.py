@@ -68,7 +68,42 @@ def alinear(serie, fechas, retraso, caducidad):
     })
 
 
+FRED = ("wti", "gas_natural", "usd_por_eur", "cny_por_usd", "vix")
+YAHOO = ("brent_fut", "wti_fut", "cobre", "oro", "indice_dolar")
+
+
+def cesta_opep(path):
+    xml = ElementTree.parse(path)
+    cesta = pd.DataFrame([item.attrib for item in xml.getroot()])
+    return pd.Series(pd.to_numeric(cesta["val"]).to_numpy(), index=pd.to_datetime(cesta["data"]), name="cesta_opep")
+
+
+def construir_tabla(fuentes, fechas):
+    """Tabla diaria a las 09:00 para un calendario dado, con las reglas de disponibilidad del protocolo.
+
+    `fuentes` contiene `brent` y las series FRED (Series), `tipo_bce` (Series), `yahoo` (DataFrame por
+    fuente, con columnas en el orden descargado) y `cesta_opep` (Series). El orden de columnas es fijo.
+    """
+    if fechas.empty or fechas.has_duplicates or not fechas.is_monotonic_increasing:
+        raise ValueError("Calendario inválido")
+    partes = [alinear(fuentes["brent"], fechas, 7, 10)]
+    for nombre in FRED:
+        limites = (2, 5) if nombre == "vix" else (7, 10)
+        partes.append(alinear(fuentes[nombre], fechas, *limites))
+    partes.append(alinear(fuentes["tipo_bce"], fechas, 1, None))
+    for fuente in YAHOO:
+        for nombre, serie in fuentes["yahoo"][fuente].items():
+            partes.append(alinear(serie, fechas, 1, 1 if nombre.endswith("_Volume") else 5))
+    partes.append(alinear(fuentes["cesta_opep"], fechas, 2, 5))
+    return pd.concat(partes, axis=1)
+
+
 def tabla_diaria():
+    return construir_tabla(*fuentes_paquete())
+
+
+def fuentes_paquete():
+    """Series del paquete fijo del estudio y su calendario (índice Brent entre inicio y fin)."""
     manifest = json.loads((BUNDLE / "manifest.json").read_text(encoding="utf-8"))
     if manifest["status"] != "complete":
         raise ValueError("Snapshot incompleto")
@@ -80,22 +115,11 @@ def tabla_diaria():
 
     brent = csv("fred_brent")["brent"]
     fechas = brent.loc[manifest["start"]:manifest["end"]].index
-    if fechas.empty or fechas.has_duplicates or not fechas.is_monotonic_increasing:
-        raise ValueError("Calendario Brent inválido")
-    partes = [alinear(brent, fechas, 7, 10)]
-    for nombre in ("wti", "gas_natural", "usd_por_eur", "cny_por_usd", "vix"):
-        limites = (2, 5) if nombre == "vix" else (7, 10)
-        partes.append(alinear(csv(f"fred_{nombre}")[nombre], fechas, *limites))
-    partes.append(alinear(deposito_bce(BUNDLE / paths["bce"]["path"]), fechas, 1, None))
-    for fuente in ("brent_fut", "wti_fut", "cobre", "oro", "indice_dolar"):
-        for nombre, serie in csv(f"yahoo_{fuente}").items():
-            partes.append(alinear(serie, fechas, 1, 1 if nombre.endswith("_Volume") else 5))
-    xml = ElementTree.parse(BUNDLE / paths["opep"]["path"])
-    cesta = pd.DataFrame([item.attrib for item in xml.getroot()])
-    opep = pd.Series(pd.to_numeric(cesta["val"]).to_numpy(),
-                     index=pd.to_datetime(cesta["data"]), name="cesta_opep")
-    partes.append(alinear(opep, fechas, 2, 5))
-    return pd.concat(partes, axis=1)
+    fuentes = {"brent": brent, **{n: csv(f"fred_{n}")[n] for n in FRED},
+               "tipo_bce": deposito_bce(BUNDLE / paths["bce"]["path"]),
+               "yahoo": {f: csv(f"yahoo_{f}") for f in YAHOO},
+               "cesta_opep": cesta_opep(BUNDLE / paths["opep"]["path"])}
+    return fuentes, fechas
 
 
 def main():

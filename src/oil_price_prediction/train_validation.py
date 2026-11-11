@@ -23,6 +23,7 @@ import torch
 from torch import nn
 
 from scripts.prepare_windows import ROOT, SNAPSHOT, VENTANA
+from src.oil_price_prediction.referencias import ingenuo_con_futuros_tabla
 
 
 REDES = {"RNN": nn.RNN, "LSTM": nn.LSTM, "GRU": nn.GRU}
@@ -75,16 +76,7 @@ def ingenuo_con_futuros(carpeta):
     d = pd.read_csv(carpeta / "entradas_diarias.csv", parse_dates=["brent_origen", "brent_fut_Close_origen"],
                     usecols=["fecha", "brent", "brent_disponible", "brent_origen", "brent_fut_Close",
                              "brent_fut_Close_disponible", "brent_fut_Close_origen"])
-    observados = (d.loc[d.brent_fut_Close_disponible == 1, ["brent_fut_Close_origen", "brent_fut_Close"]]
-                  .drop_duplicates("brent_fut_Close_origen").set_index("brent_fut_Close_origen").brent_fut_Close.sort_index())
-    if not observados.index.is_unique:
-        raise ValueError("Cierre del futuro repetido con distinta fecha de observación.")
-    futuro_base = pd.Series(observados.reindex(d.brent_origen, method="ffill").to_numpy(), index=d.index)
-    futuro_base[d.brent_origen.isna()] = np.nan
-    validos = ((d.brent_disponible == 1) & (d.brent_fut_Close_disponible == 1) & (d.brent > 0)
-               & (d.brent_fut_Close > 0) & (futuro_base > 0))
-    valor = (d.brent * d.brent_fut_Close / futuro_base).where(validos)
-    return pd.Series(valor.to_numpy(), index=d.fecha, name="prediccion_ingenua_futuros")
+    return ingenuo_con_futuros_tabla(d)
 
 
 def cargar_datos(corte, h, objetivo, tipo_entradas="niveles", tipo_base="spot", fase="validacion"):
