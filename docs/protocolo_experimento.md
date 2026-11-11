@@ -93,6 +93,8 @@ Sin embargo, el ingenuo con futuros obtiene por sí solo una puntuación de +10,
 
 **Al test van** las tres arquitecturas de esta familia, cada una con sus tamaños y el promedio de tres semillas, junto con las dos referencias: el ingenuo del protocolo y el ingenuo con futuros. En total son 27 ajustes finales. El test se usa una sola vez.
 
+**Ajuste final** (`scripts/prepare_splits.py --fase final`, `scripts/prepare_scalers.py --entradas variaciones --fase final` y `src/oil_price_prediction/train_final.py`). La frontera es el 02/01/2023 y se aplican las mismas reglas de aprendizaje, tramo interno y escalado que en validación. Al reservar el último 15 % para la parada temprana, el tramo interno cubre aproximadamente 2019–2022 y los modelos no aprenden directamente de la pandemia ni de 2022. Se mantiene por coherencia con la validación y se documenta como limitación. Los 27 ajustes se guardan en `reports/experimentos/final/` con una única configuración. El script de ajuste no calcula ninguna métrica de test.
+
 **Trayectoria de la validación**, 13 + 3 experimentos y 1.080 ajustes válidos:
 - Precio (E1): las redes se anclan a un nivel.
 - Cambio (E2–E4, con promedio de semillas).

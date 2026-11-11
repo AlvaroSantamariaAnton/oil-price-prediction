@@ -1,0 +1,39 @@
+{
+  "experimento": "final",
+  "familia_validacion": ["E14", "E15", "E16"],
+  "seleccionada": "RNN",
+  "objetivo": "cambio",
+  "entradas": "variaciones",
+  "base": "futuros",
+  "snapshot": "20261106T142300_705279Z_all",
+  "protocolo": "docs/protocolo_experimento.md",
+  "biblioteca": "pytorch",
+  "dispositivo": "cuda",
+  "ventana_fechas_brent": 60,
+  "horizontes_fechas_brent": [5, 63, 252],
+  "arquitecturas": ["RNN", "LSTM", "GRU"],
+  "capas_recurrentes": 1,
+  "unidades": {
+    "RNN": {"5": 32, "63": 32, "252": 32},
+    "LSTM": {"5": 32, "63": 64, "252": 32},
+    "GRU": {"5": 64, "63": 32, "252": 32}
+  },
+  "ajuste_final": {
+    "frontera": "2023-01-02",
+    "particiones": "particiones_final.csv",
+    "escalado": "escalado_final_variaciones.zip"
+  },
+  "parada_temprana": {
+    "fraccion_final_cronologica": 0.15,
+    "metrica": "mae_interno_usd_barril",
+    "max_epocas": 100,
+    "paciencia_epocas": 10,
+    "recuperar_mejores_pesos": true
+  },
+  "escalado": "estandarizacion_por_variable",
+  "perdida": "MAE",
+  "optimizador": "Adam",
+  "tasa_aprendizaje": {"5": 0.001, "63": 0.0001, "252": 0.0001},
+  "tamano_lote": 32,
+  "semillas": [42, 43, 44]
+}

@@ -34,6 +34,7 @@ OBJETIVOS = ("precio", "cambio", "porcentaje")
 # niveles: entradas escaladas en nivel (E1–E10; también si el campo falta).
 # variaciones: precios como variación logarítmica diaria (scripts/prepare_scalers.py --entradas variaciones).
 ESCALADOS = {"niveles": "escalado_validacion.zip", "variaciones": "escalado_validacion_variaciones.zip"}
+ESCALADOS_FINAL = {"niveles": "escalado_final.zip", "variaciones": "escalado_final_variaciones.zip"}
 # spot: el cambio se mide desde el último Brent spot admisible (E2–E13; también si el campo falta).
 # futuros: desde ese spot actualizado con el futuro de Brent (ingenuo con futuros), si existe.
 BASES = ("spot", "futuros")
@@ -86,19 +87,28 @@ def ingenuo_con_futuros(carpeta):
     return pd.Series(valor.to_numpy(), index=d.fecha, name="prediccion_ingenua_futuros")
 
 
-def cargar_datos(corte, h, objetivo, tipo_entradas="niveles", tipo_base="spot"):
+def cargar_datos(corte, h, objetivo, tipo_entradas="niveles", tipo_base="spot", fase="validacion"):
+    """Tensores, fechas, tabla de referencia, escalador y bases por tramo.
+
+    fase="validacion": tramos aprendizaje/interno/validacion y referencia ingenua de validación.
+    fase="final": tramos aprendizaje/interno/test (particiones y escaladores finales); la tabla de
+    test lleva las predicciones de las dos referencias, sin ninguna métrica.
+    """
+    if fase not in ("validacion", "final") or (fase == "final" and objetivo == "precio"):
+        raise ValueError("Fase desconocida o fase final con objetivo precio.")
+    evaluado = "validacion" if fase == "validacion" else "test"
     carpeta = ROOT / "data/processed" / SNAPSHOT
-    with ZipFile(carpeta / ESCALADOS[tipo_entradas]) as z:
+    with ZipFile(carpeta / (ESCALADOS if fase == "validacion" else ESCALADOS_FINAL)[tipo_entradas]) as z:
         base = f"{corte}/h{h:03d}/"
         escalador = json.loads(z.read(base + "escalador.json"))
         with z.open(base + "entradas.csv") as archivo:
             entradas = pd.read_csv(archivo, index_col="fila_diaria")
     if (escalador["snapshot"], escalador["corte"], escalador["horizonte"]) != (SNAPSHOT, corte, h):
         raise ValueError("El escalador pertenece a otro ajuste.")
-    if escalador.get("entradas", "niveles") != tipo_entradas:
-        raise ValueError("El escalador corresponde a otro tipo de entradas.")
+    if escalador.get("entradas", "niveles") != tipo_entradas or escalador.get("fase", "validacion") != fase:
+        raise ValueError("El escalador corresponde a otro tipo de entradas o a otra fase.")
     valores = entradas[escalador["orden_entradas"]].to_numpy(dtype="float32")
-    particiones = pd.read_csv(carpeta / "particiones_validacion.csv")
+    particiones = pd.read_csv(carpeta / ("particiones_validacion.csv" if fase == "validacion" else "particiones_final.csv"))
     particiones = particiones.loc[(particiones.corte == corte) & (particiones.horizonte == h)]
     ventanas = pd.read_csv(carpeta / "ventanas_objetivos.csv")
     muestras = particiones.merge(ventanas.loc[ventanas.horizonte == h], on=["horizonte", "fecha_origen"],
@@ -116,13 +126,14 @@ def cargar_datos(corte, h, objetivo, tipo_entradas="niveles", tipo_base="spot"):
         muestras = muestras.loc[~sin_base]
         if not np.isfinite(muestras.brent).all() or not (muestras.brent > 0).all():
             raise ValueError("Brent admisible no finito o no positivo en el origen.")
+        muestras = muestras.assign(brent_spot=muestras.brent)
     futuros = ingenuo_con_futuros(carpeta)
     if tipo_base == "futuros":
         # Base actualizada con futuros cuando existe; antes del futuro de Brent (2007), el spot.
         actualizada = futuros.reindex(muestras.fecha_origen).to_numpy()
         muestras = muestras.assign(brent=np.where(np.isnan(actualizada), muestras.brent, actualizada))
     tensores, fechas, bases = {}, {}, {}
-    for tramo in ("aprendizaje", "interno", "validacion"):
+    for tramo in ("aprendizaje", "interno", evaluado):
         filas = muestras.loc[muestras.tramo == tramo]
         if filas.empty or filas.fila_origen.isna().any():
             raise ValueError(f"Faltan ventanas en {tramo}.")
@@ -138,6 +149,18 @@ def cargar_datos(corte, h, objetivo, tipo_entradas="niveles", tipo_base="spot"):
             y = 100 * (y - torch.from_numpy(base)) / torch.from_numpy(base)
         tensores[tramo] = (torch.from_numpy(valores[posiciones]), y)
         fechas[tramo], bases[tramo] = filas, base
+    if fase == "final":
+        # Tabla de test: predicciones de las dos referencias, sin calcular errores ni métricas.
+        test = fechas["test"].set_index("fecha_origen")
+        ref = pd.DataFrame({"horizonte": h, "corte": corte, "fecha_objetivo": test.fecha_objetivo,
+                            "brent_objetivo": test.brent_objetivo, "prediccion_ingenua": test.brent_spot,
+                            "prediccion_ingenua_futuros": futuros.reindex(test.index).to_numpy()})
+        referencia_base = ref.prediccion_ingenua_futuros if tipo_base == "futuros" else ref.prediccion_ingenua
+        if tipo_base == "futuros":
+            referencia_base = referencia_base.fillna(ref.prediccion_ingenua)
+        if not np.array_equal(bases["test"], referencia_base.to_numpy(dtype="float32")):
+            raise ValueError("El Brent base difiere de la predicción ingenua correspondiente.")
+        return tensores, fechas, ref, escalador, bases
     with ZipFile(carpeta / "referencia_ingenua_validacion.zip") as z:
         with z.open("predicciones.csv") as archivo:
             referencia = pd.read_csv(archivo)
