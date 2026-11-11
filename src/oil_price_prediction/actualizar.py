@@ -140,6 +140,7 @@ def main():
     parser.add_argument("--origen", help="Fecha de predicción YYYY-MM-DD (por defecto, hoy en Madrid; fin de semana: viernes)")
     parser.add_argument("--paquete", action="store_true", help="Usar el paquete fijo del estudio en lugar de descargar")
     parser.add_argument("--salida", default=str(ROOT / "dist/huggingface/datos/prediccion.json"))
+    parser.add_argument("--repo-datos", help="Repositorio de datos de Hugging Face donde publicar el JSON")
     a = parser.parse_args()
     hoy = datetime.now(ZONA).date()
     origen = pd.Timestamp(a.origen) if a.origen else pd.Timestamp(hoy) - pd.offsets.BDay(0)
@@ -173,6 +174,21 @@ def main():
         print(f"  +{p['horizonte']} ({p['fecha_objetivo']}): {p['precio']:.2f} USD "
               f"[{p['intervalo'][0]:.2f}, {p['intervalo'][1]:.2f}]")
     print(destino)
+    if a.repo_datos:
+        if a.paquete:
+            parser.error("No se publican previsiones calculadas con el paquete del estudio.")
+        publicar(a.repo_datos, destino, salida["origen"])
+
+
+def publicar(repo, archivo, origen):
+    """Sube la previsión vigente (prediccion.json) y una copia en historial/<origen>.json."""
+    from huggingface_hub import CommitOperationAdd, HfApi
+    api = HfApi()
+    api.create_repo(repo, repo_type="dataset", exist_ok=True)
+    info = api.create_commit(repo_id=repo, repo_type="dataset", commit_message=f"Previsión del {origen}", operations=[
+        CommitOperationAdd(path_in_repo="prediccion.json", path_or_fileobj=str(archivo)),
+        CommitOperationAdd(path_in_repo=f"historial/{origen}.json", path_or_fileobj=str(archivo))])
+    print(info.commit_url)
 
 
 if __name__ == "__main__":
