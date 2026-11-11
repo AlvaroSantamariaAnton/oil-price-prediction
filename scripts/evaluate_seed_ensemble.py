@@ -4,7 +4,9 @@ Cada familia indica qué réplicas (una por semilla) se promedian en cada horizo
 - cambio: E2, E3 y E4 en los tres horizontes.
 - porcentaje: E5, E6 y E7 (descartada según su regla; se muestra como registro).
 - cambio_tasa_menor: +5 de E2–E4 y +63/+252 de E8–E10 (tasa 0,0001).
-La selección compara los candidatos de `cambio` y `cambio_tasa_menor`.
+- variaciones: E11, E12 y E13 en los tres horizontes (entradas de precio en variación diaria).
+La selección compara los candidatos de `cambio_tasa_menor` y `variaciones` (regla de E11–E13);
+`cambio` quedó superada por `cambio_tasa_menor` y se muestra como registro.
 Solo lee predicciones de validación ya guardadas; no entrena ni consulta el test.
 Las reglas están fijadas en docs/protocolo_experimento.md.
 """
@@ -25,9 +27,11 @@ FAMILIAS = {
     "cambio": {h: CAMBIO for h in HORIZONTES},
     "porcentaje": {h: ("E5", "E6", "E7") for h in HORIZONTES},
     "cambio_tasa_menor": {5: CAMBIO, 63: ("E8", "E9", "E10"), 252: ("E8", "E9", "E10")},
+    "variaciones": {h: ("E11", "E12", "E13") for h in HORIZONTES},
 }
-OBJETIVO = {"cambio": "cambio", "porcentaje": "porcentaje", "cambio_tasa_menor": "cambio"}
-SELECCION = ("cambio", "cambio_tasa_menor")
+OBJETIVO = {"cambio": "cambio", "porcentaje": "porcentaje", "cambio_tasa_menor": "cambio", "variaciones": "cambio"}
+ENTRADAS = {"variaciones": "variaciones"}
+SELECCION = ("cambio_tasa_menor", "variaciones")
 
 
 def cargar(familia):
@@ -36,7 +40,8 @@ def cargar(familia):
         semillas = set()
         for e in replicas:
             config = json.loads((ROOT / "reports/experimentos" / e / "config.json").read_text(encoding="utf-8"))
-            if config["objetivo"] != OBJETIVO[familia] or h not in config["horizontes_fechas_brent"]:
+            if (config["objetivo"] != OBJETIVO[familia] or h not in config["horizontes_fechas_brent"]
+                    or config.get("entradas", "niveles") != ENTRADAS.get(familia, "niveles")):
                 raise ValueError(f"{e} no corresponde a la familia {familia} a +{h}.")
             semillas.add(config["semilla"])
             for carpeta in glob.glob(str(ROOT / "reports/experimentos" / e / "validacion" / f"*_h{h:03d}_*")):
