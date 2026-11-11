@@ -95,7 +95,23 @@ def figuras(familia, futuros):
     margenes = {k: float(np.percentile(t.error, NIVEL)) for k, t in tablas.items()}
     semillas = len(FAMILIAS[familia][HORIZONTES[0]])
     media = "media de 3 semillas" if semillas > 1 else "una semilla"
-    titulo = f"{CARPETAS[familia]} ({familia})"
+    resumen = dibujar(tablas, tamanos, principal, margenes, carpeta, f"Validación {CARPETAS[familia]} ({familia})", media)
+    print(f"{CARPETAS[familia]} ({familia}): principal {principal}; puntuación "
+          + ", ".join(f"{a} {v:+.2f} %" for a, v in puntuaciones.items()))
+    print("  márgenes P80 " + ", ".join(f"+{h} ±{margenes[principal, h]:.2f}" for h in HORIZONTES)
+          + f"; dirección: {'; '.join(resumen)}")
+    print(f"  {carpeta}")
+
+
+def dibujar(tablas, tamanos, principal, margenes, carpeta, titulo, media):
+    """Seis figuras a partir de tablas por (arquitectura, horizonte) con la columna `corte` como periodo.
+
+    Las tablas llevan fecha_origen, fecha_objetivo, brent_objetivo, prediccion_ingenua,
+    prediccion_ingenua_futuros, prediccion y los errores absolutos error, error_ingenuo y error_futuros.
+    `margenes` da el margen del intervalo por (arquitectura, horizonte). Devuelve el resumen de dirección.
+    """
+    carpeta.mkdir(parents=True, exist_ok=True)
+    periodos = sorted(tablas[principal, HORIZONTES[0]].corte.unique())
     etiqueta = lambda a, h: f"{a} ({tamanos[a, h]} u)"
 
     # 1. Precio real frente a previsto con la banda del intervalo (arquitectura principal).
@@ -115,7 +131,7 @@ def figuras(familia, futuros):
                             plt.Rectangle((0, 0), 1, 1, color=COLORES[principal], alpha=0.15, label="Intervalo 80 %")],
                    loc="upper left", ncol=3)
     ejes[-1].set_xlabel("Fecha objetivo")
-    fig.suptitle(f"Validación {titulo}: precio real frente a previsto", x=0.01, ha="left", fontsize=12)
+    fig.suptitle(f"{titulo}: precio real frente a previsto", x=0.01, ha="left", fontsize=12)
     guardar(fig, carpeta, "01_real_vs_previsto.png")
 
     # 2. Error acumulado de cada red y del ingenuo con futuros menos el del ingenuo.
@@ -133,7 +149,7 @@ def figuras(familia, futuros):
         ax.legend(loc="best", ncol=4)
         fechas_eje(ax)
     ejes[-1].set_xlabel("Fecha de origen")
-    fig.suptitle(f"Validación {titulo}: error absoluto acumulado menos el del ingenuo", x=0.01, ha="left", fontsize=12)
+    fig.suptitle(f"{titulo}: error absoluto acumulado menos el del ingenuo", x=0.01, ha="left", fontsize=12)
     guardar(fig, carpeta, "02_error_acumulado.png")
 
     # 3. MAE por año y horizonte.
@@ -145,14 +161,14 @@ def figuras(familia, futuros):
         for i, s in enumerate(series):
             t = tablas[s, h] if s in ARQUITECTURAS else tablas[principal, h]
             valores = t.groupby("corte")[columna.get(s, "error")].mean()
-            ax.bar(np.arange(len(CORTES)) + (i - (len(series) - 1) / 2) * ancho, valores.to_numpy(), ancho * 0.9,
+            ax.bar(np.arange(len(periodos)) + (i - (len(series) - 1) / 2) * ancho, valores.to_numpy(), ancho * 0.9,
                    color=COLORES[s], label=etiqueta(s, h) if s in ARQUITECTURAS else s)
-        ax.set_xticks(np.arange(len(CORTES)), [str(c) for c in CORTES])
+        ax.set_xticks(np.arange(len(periodos)), [str(c) for c in periodos])
         ax.set_title(f"+{h} fechas", loc="left")
         ax.grid(axis="x", visible=False)
     ejes[0].set_ylabel("MAE (USD/barril)")
     ejes[0].legend(loc="upper left", fontsize=7)
-    fig.suptitle(f"Validación {titulo}: MAE por año", x=0.01, ha="left", fontsize=12)
+    fig.suptitle(f"{titulo}: MAE por año", x=0.01, ha="left", fontsize=12)
     guardar(fig, carpeta, "03_mae_por_anio.png")
 
     # 4. Cambio previsto frente a cambio real (respecto al último spot admisible).
@@ -172,7 +188,7 @@ def figuras(familia, futuros):
         ax.set_title(f"+{h} · {etiqueta(principal, h)} · r = {correlacion:.2f}", loc="left")
         ax.set_xlabel("Cambio real (USD)")
     ejes[0].set_ylabel("Cambio previsto (USD)")
-    fig.suptitle(f"Validación {titulo}: cambio previsto frente a real (diagonal = acierto perfecto)",
+    fig.suptitle(f"{titulo}: cambio previsto frente a real (diagonal = acierto perfecto)",
                  x=0.01, ha="left", fontsize=12)
     guardar(fig, carpeta, "04_cambio_previsto_vs_real.png")
 
@@ -191,7 +207,7 @@ def figuras(familia, futuros):
         ax.set_ylabel("% en 63 orígenes")
         fechas_eje(ax)
     ejes[-1].set_xlabel("Fecha de origen")
-    fig.suptitle(f"Validación {titulo}: cobertura móvil del intervalo 80 % ({principal})", x=0.01, ha="left", fontsize=12)
+    fig.suptitle(f"{titulo}: cobertura móvil del intervalo 80 % ({principal})", x=0.01, ha="left", fontsize=12)
     guardar(fig, carpeta, "05_cobertura_intervalo.png")
 
     # 6. Dirección: matriz de confusión sube/baja respecto al último spot admisible.
@@ -221,13 +237,9 @@ def figuras(familia, futuros):
                      loc="left")
         resumen.append(f"+{h} " + ", ".join(f"{k} {v:.0f} %" for k, v in aciertos.items()))
     ejes[0].set_ylabel("Previsto")
-    fig.suptitle(f"Validación {titulo}: dirección prevista frente a real ({principal})", x=0.01, ha="left", fontsize=12)
+    fig.suptitle(f"{titulo}: dirección prevista frente a real ({principal})", x=0.01, ha="left", fontsize=12)
     guardar(fig, carpeta, "06_direccion.png")
-
-    print(f"{titulo}: principal {principal}; puntuación " + ", ".join(f"{a} {v:+.2f} %" for a, v in puntuaciones.items()))
-    print("  márgenes P80 " + ", ".join(f"+{h} ±{margenes[principal, h]:.2f}" for h in HORIZONTES)
-          + f"; dirección: {'; '.join(resumen)}")
-    print(f"  {carpeta}")
+    return resumen
 
 
 def main():
