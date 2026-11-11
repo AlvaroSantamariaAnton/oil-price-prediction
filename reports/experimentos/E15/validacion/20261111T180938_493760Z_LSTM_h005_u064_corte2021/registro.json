@@ -1,0 +1,52 @@
+{
+  "id": "20261111T180938_493760Z_LSTM_h005_u064_corte2021",
+  "snapshot": "20261106T142300_705279Z_all",
+  "objetivo": "cambio",
+  "entradas": "variaciones",
+  "base": "futuros",
+  "tasa_aprendizaje": 0.001,
+  "arquitectura": "LSTM",
+  "unidades": 64,
+  "horizonte": 5,
+  "corte": 2021,
+  "configuracion": "../../config.json",
+  "parametros": 27713,
+  "mejor_epoca": 2,
+  "segundos_entrenamiento": 4.5105609000020195,
+  "mae": 2.6689860366460847,
+  "mse": 11.70395626564659,
+  "rmse": 3.4211045388363375,
+  "mae_ingenuo": 3.587165354330708,
+  "mejora_porcentual": 25.596236219669244,
+  "origenes_con_futuros": 254,
+  "mae_ingenuo_futuros": 2.4939953856516923,
+  "mejora_frente_futuros": -7.0164785388593165,
+  "python": "3.13.15",
+  "torch": "2.11.0+cu128",
+  "cuda": "12.8",
+  "cudnn": 91900,
+  "dispositivo": "NVIDIA GeForce RTX 3060 Ti",
+  "script_sha256": "b61f104073d10fdcf172c532ff3769907ed015a8d9419c261ef537130d18cfb2",
+  "protocolo_sha256": "7314a8274dbaf53bfec39579da5a4c3150bd14f23783a49cd771971e721fd114",
+  "commit": "d12f07ae2f62969da620b69acdac00c29b728107",
+  "tramos": {
+    "aprendizaje": {
+      "n": 4193,
+      "inicio": "2000-03-28",
+      "fin": "2017-12-28"
+    },
+    "interno": {
+      "n": 745,
+      "inicio": "2018-01-15",
+      "fin": "2020-12-16"
+    },
+    "validacion": {
+      "n": 254,
+      "inicio": "2021-01-01",
+      "fin": "2021-12-31"
+    }
+  },
+  "pesos": "modelo.pt",
+  "escalador": "escalador.json",
+  "predicciones": "predicciones.csv"
+}

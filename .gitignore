@@ -233,3 +233,11 @@ __marimo__/
 # Local tests and experiment runs
 /tests/
 /reports/experimentos/E[0-9]*/
+# Published: the selected validation family (E14–E16)
+!/reports/experimentos/E14/
+!/reports/experimentos/E15/
+!/reports/experimentos/E16/
+
+# Validation figures: only the selected family is published
+/reports/figuras/*/
+!/reports/figuras/E14-E16/

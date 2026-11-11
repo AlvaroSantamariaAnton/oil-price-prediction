@@ -1,0 +1,53 @@
+{
+  "experimento": "E14",
+  "objetivo": "cambio",
+  "entradas": "variaciones",
+  "base": "futuros",
+  "snapshot": "20261106T142300_705279Z_all",
+  "protocolo": "docs/protocolo_experimento.md",
+  "biblioteca": "pytorch",
+  "dispositivo": "cuda",
+  "ventana_fechas_brent": 60,
+  "horizontes_fechas_brent": [
+    5,
+    63,
+    252
+  ],
+  "arquitecturas": [
+    "RNN",
+    "LSTM",
+    "GRU"
+  ],
+  "capas_recurrentes": 1,
+  "unidades_recurrentes": [
+    32,
+    64
+  ],
+  "validacion": {
+    "tipo": "entrenamiento_creciente",
+    "primer_anio_entrenamiento": 2000,
+    "anios_de_prediccion": [
+      2018,
+      2019,
+      2020,
+      2021
+    ]
+  },
+  "parada_temprana": {
+    "fraccion_final_cronologica": 0.15,
+    "metrica": "mae_interno_usd_barril",
+    "max_epocas": 100,
+    "paciencia_epocas": 10,
+    "recuperar_mejores_pesos": true
+  },
+  "escalado": "estandarizacion_por_variable",
+  "perdida": "MAE",
+  "optimizador": "Adam",
+  "tasa_aprendizaje": {
+    "5": 0.001,
+    "63": 0.0001,
+    "252": 0.0001
+  },
+  "tamano_lote": 32,
+  "semilla": 42
+}

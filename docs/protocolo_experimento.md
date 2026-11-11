@@ -81,6 +81,28 @@ La tabla final presentará por arquitectura y horizonte el número de orígenes 
 
 **E14–E16 (base actualizada con futuros, fijado antes de entrenar).** Para comprobar si la red aporta algo más que la información de los futuros, E14, E15 y E16 repiten la selección actual (objetivo `cambio`, entradas en variaciones, tasa 0,001 a +5 y 0,0001 a +63 y +252) con las semillas 42, 43 y 44 (72 ajustes cada uno), pero miden el cambio desde el ingenuo con futuros (`base: futuros`). Cuando no hay futuro de Brent, lo que ocurre en todos los orígenes anteriores al 31/07/2007, la base es el spot. Con salida nula la red reproduce el ingenuo con futuros. La familia entra en la comparación de candidatos promediados con la regla vigente. Además se informa de la mejora de cada candidato frente al ingenuo con futuros, que es la pregunta de fondo. El futuro continuo de Yahoo tiene saltos al cambiar de vencimiento; afectan por igual a la red y a esa referencia.
 
+**Resultado de E14–E16.** Con el promedio de las tres semillas y la puntuación del protocolo: GRU +8,52 % (64/32/32 unidades; 418,21 s), RNN +8,46 % (32/32/32; 359,73 s) y LSTM +7,90 % (32/64/32; 405,02 s). Los tres superan a los candidatos de E11–E13. Los tres quedan a un punto o menos del mejor, así que decide el tiempo de entrenamiento: **se selecciona RNN con objetivo `cambio`, entradas en variaciones, base actualizada con futuros y promedio de las semillas 42, 43 y 44, con 32 unidades en los tres horizontes y tasa 0,001 a +5 y 0,0001 a +63 y +252.** Por horizonte: +5 IC95 [21,35; 32,99] y Diebold-Mariano p < 0,001; +63 IC95 [−3,62; 5,51] y p 0,337.
+
+Sin embargo, el ingenuo con futuros obtiene por sí solo una puntuación de +10,23 % con la misma regla (+28,08 % a +5, +2,17 % a +63 y +0,43 % a +252). Frente a él, todos los candidatos quedan por debajo en la media: RNN −1,85 %, GRU −1,90 % y LSTM −2,48 %. Ningún candidato de ningún experimento lo supera de forma consistente. Conclusión de validación: las redes no aportan información útil más allá del último precio actualizado con los futuros. Su mejora frente a la referencia principal procede de esa actualización.
+
+## Cierre de la validación (11/11/2026)
+
+**Selección final.** RNN con objetivo `cambio`, entradas en variaciones, base actualizada con futuros y promedio de las semillas 42, 43 y 44. Usa 32 unidades en los tres horizontes, con tasa 0,001 a +5 y 0,0001 a +63 y +252. Las diferencias entre las tres arquitecturas de esta familia son menores de un punto y menores que la variación entre semillas, así que la elección de arquitectura tiene poca importancia práctica.
+
+**Márgenes del intervalo al 80 %** (`scripts/compute_interval_margins.py`; percentil 80 del error absoluto de la predicción promediada en validación): RNN ±4,10, ±15,99 y ±39,94 USD/barril a +5, +63 y +252. GRU ±4,38, ±15,37 y ±40,13. LSTM ±4,30, ±16,34 y ±39,07. El margen es fijo en USD. Se comparó en validación con un margen proporcional al precio y no mejoró la cobertura. La cobertura cae en los años volátiles (2020 a +63; 2021 a +252).
+
+**Al test van** las tres arquitecturas de esta familia, cada una con sus tamaños y el promedio de tres semillas, junto con las dos referencias: el ingenuo del protocolo y el ingenuo con futuros. En total son 27 ajustes finales. El test se usa una sola vez.
+
+**Trayectoria de la validación**, 13 + 3 experimentos y 1.080 ajustes válidos:
+- Precio (E1): las redes se anclan a un nivel.
+- Cambio (E2–E4, con promedio de semillas).
+- Porcentaje (E5–E7): descartado.
+- Tasa menor a +63 y +252 (E8–E10).
+- Entradas en variaciones (E11–E13).
+- Base con futuros (E14–E16).
+
+Cada cambio partió de un problema observado y su regla se fijó antes de entrenar. Todas las elecciones se hicieron sobre la misma validación, así que las cifras seleccionadas son optimistas.
+
 **Selección provisional anterior (solo semilla 42, sustituida).** La aplicación usaría LSTM con el objetivo `cambio` de E2, con 64, 32 y 64 unidades a +5, +63 y +252. El segundo candidato, GRU de E2, queda a 7,65 puntos, por lo que no se aplica el desempate por tiempo. Los ajustes finales y los márgenes de los intervalos se obtienen con la configuración de E2 y, para cada arquitectura, con los tamaños seleccionados en ese experimento.
 
 **Al interpretar los resultados.** Los retrasos se eligieron tras auditar fechas de publicación del paquete completo, incluidas fechas posteriores a 2022. La evaluación es retrospectiva: se reservan los errores de predicción del test para el informe final, pero el diseño ya utilizó información sobre el calendario de publicación de ese periodo. Además, los mismos cortes de validación sirven para elegir tamaños y estimar los márgenes. La cobertura en test es la comprobación externa del intervalo nominal.

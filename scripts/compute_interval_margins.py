@@ -1,7 +1,7 @@
 """Márgenes de los intervalos al 80 % con la validación de la familia seleccionada.
 
 Para cada arquitectura y horizonte se usa el tamaño elegido por la regla del promedio de semillas
-en la familia `variaciones` (E11–E13). El margen es el percentil 80 de los errores absolutos de la
+en la familia seleccionada, `futuros` (E14–E16). El margen es el percentil 80 de los errores absolutos de la
 predicción promediada en los cuatro años de validación. El intervalo de una predicción es
 precio previsto ± margen, en USD/barril. Solo lee validación; no entrena ni consulta el test.
 """
@@ -14,7 +14,7 @@ from scripts.evaluate_seed_ensemble import FAMILIAS, cargar, promediar
 from scripts.evaluate_validation_uncertainty import ARQUITECTURAS, CORTES, mejora
 from scripts.prepare_windows import HORIZONTES, ROOT
 
-FAMILIA = "variaciones"
+FAMILIA = "futuros"
 NIVEL = 80
 DESTINO = ROOT / "reports" / "margenes_validacion.json"
 
