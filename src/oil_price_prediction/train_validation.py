@@ -31,6 +31,14 @@ REDES = {"RNN": nn.RNN, "LSTM": nn.LSTM, "GRU": nn.GRU}
 # porcentaje: predice 100 · (objetivo − Brent base) / Brent base; la pérdida se calcula en
 # porcentaje, pero la parada temprana y las métricas siguen en USD/barril.
 OBJETIVOS = ("precio", "cambio", "porcentaje")
+# niveles: entradas escaladas en nivel (E1–E10; también si el campo falta).
+# variaciones: precios como variación logarítmica diaria (scripts/prepare_scalers.py --entradas variaciones).
+ESCALADOS = {"niveles": "escalado_validacion.zip", "variaciones": "escalado_validacion_variaciones.zip"}
+
+
+def tasa_del_horizonte(tasa, h):
+    """La tasa puede ser un número común o un diccionario {"5": ..., "63": ..., "252": ...}."""
+    return tasa[str(h)] if isinstance(tasa, dict) else tasa
 
 
 def a_precio(salida, base, objetivo):
@@ -53,15 +61,17 @@ class Regresor(nn.Module):
         return self.salida(secuencia[:, -1]).squeeze(-1)
 
 
-def cargar_datos(corte, h, objetivo):
+def cargar_datos(corte, h, objetivo, tipo_entradas="niveles"):
     carpeta = ROOT / "data/processed" / SNAPSHOT
-    with ZipFile(carpeta / "escalado_validacion.zip") as z:
+    with ZipFile(carpeta / ESCALADOS[tipo_entradas]) as z:
         base = f"{corte}/h{h:03d}/"
         escalador = json.loads(z.read(base + "escalador.json"))
         with z.open(base + "entradas.csv") as archivo:
             entradas = pd.read_csv(archivo, index_col="fila_diaria")
     if (escalador["snapshot"], escalador["corte"], escalador["horizonte"]) != (SNAPSHOT, corte, h):
         raise ValueError("El escalador pertenece a otro ajuste.")
+    if escalador.get("entradas", "niveles") != tipo_entradas:
+        raise ValueError("El escalador corresponde a otro tipo de entradas.")
     valores = entradas[escalador["orden_entradas"]].to_numpy(dtype="float32")
     particiones = pd.read_csv(carpeta / "particiones_validacion.csv")
     particiones = particiones.loc[(particiones.corte == corte) & (particiones.horizonte == h)]
@@ -177,15 +187,24 @@ def main():
     if (c["validacion"]["tipo"] != "entrenamiento_creciente" or c["validacion"]["primer_anio_entrenamiento"] != 2000
             or regla["fraccion_final_cronologica"] != 0.15 or regla["metrica"] != "mae_interno_usd_barril"
             or regla["recuperar_mejores_pesos"] is not True or regla["max_epocas"] < 1
-            or regla["paciencia_epocas"] < 1 or c["tamano_lote"] < 1 or c["tasa_aprendizaje"] <= 0):
+            or regla["paciencia_epocas"] < 1 or c["tamano_lote"] < 1):
         parser.error("Revisar validación, parada temprana o parámetros de optimización.")
+    try:
+        tasa = tasa_del_horizonte(c["tasa_aprendizaje"], a.horizonte)
+    except KeyError:
+        parser.error(f"Falta la tasa de aprendizaje para +{a.horizonte}.")
+    if not isinstance(tasa, (int, float)) or tasa <= 0:
+        parser.error("La tasa de aprendizaje debe ser positiva.")
+    tipo_entradas = c.get("entradas", "niveles")
+    if tipo_entradas not in ESCALADOS:
+        parser.error(f"entradas debe ser uno de {tuple(ESCALADOS)}.")
     if not re.fullmatch(r"E[0-9]+", c["experimento"] or "") or not torch.cuda.is_available():
         parser.error("Se requiere un nombre de experimento E<n> y CUDA disponible.")
     objetivo = c.get("objetivo", "precio")
     if objetivo not in OBJETIVOS:
         parser.error(f"objetivo debe ser uno de {OBJETIVOS}.")
     protocolo = (ROOT / c["protocolo"]).read_bytes()
-    datos, fechas, ref, escalador, brent_base = cargar_datos(a.corte, a.horizonte, objetivo)
+    datos, fechas, ref, escalador, brent_base = cargar_datos(a.corte, a.horizonte, objetivo, tipo_entradas)
     bases_tramo = {k: torch.from_numpy(v).cuda() for k, v in brent_base.items()}
     experimento = ROOT / "reports/experimentos" / c["experimento"]
     base = experimento / "validacion"
@@ -205,7 +224,7 @@ def main():
     torch.manual_seed(c["semilla"])
     modelo = Regresor(a.arquitectura, len(escalador["orden_entradas"]), a.unidades).cuda()
     datos = {k: (x.cuda(), y.cuda()) for k, (x, y) in datos.items()}
-    historial, mejor, segundos = ajustar(modelo, datos, c, objetivo, bases_tramo)
+    historial, mejor, segundos = ajustar(modelo, datos, dict(c, tasa_aprendizaje=tasa), objetivo, bases_tramo)
     salida = predecir(modelo, datos["validacion"][0], c["tamano_lote"]).cpu().numpy()
     if objetivo == "porcentaje":
         ref["prediccion_red"] = a_precio(salida, brent_base["validacion"], objetivo)
@@ -214,7 +233,8 @@ def main():
     error = ref.prediccion_red - ref.brent_objetivo
     mae, mse = float(error.abs().mean()), float((error ** 2).mean())
     ingenuo = float((ref.prediccion_ingenua - ref.brent_objetivo).abs().mean())
-    registro = dict(id=identificador, snapshot=SNAPSHOT, objetivo=objetivo, arquitectura=a.arquitectura, unidades=a.unidades,
+    registro = dict(id=identificador, snapshot=SNAPSHOT, objetivo=objetivo, entradas=tipo_entradas,
+                    tasa_aprendizaje=tasa, arquitectura=a.arquitectura, unidades=a.unidades,
                     horizonte=a.horizonte, corte=a.corte, configuracion="../../config.json",
                     parametros=sum(p.numel() for p in modelo.parameters()), mejor_epoca=mejor,
                     segundos_entrenamiento=segundos, mae=mae, mse=mse, rmse=mse**0.5, mae_ingenuo=ingenuo,

@@ -1,5 +1,12 @@
-"""Ajustar por corte y horizonte y transformar las filas usadas en validación."""
+"""Ajustar por corte y horizonte y transformar las filas usadas en validación.
 
+Con `--entradas variaciones`, las variables de precio se sustituyen antes de escalar por su
+variación logarítmica diaria × 100 entre el valor admisible de la fecha y el de la fecha anterior
+del calendario. La variación falta si falta alguno de los dos valores o si alguno no es positivo
+(WTI en abril de 2020). Se guarda en un ZIP aparte; sin la opción, la salida no cambia.
+"""
+
+import argparse
 import json
 import os
 import tempfile
@@ -10,6 +17,21 @@ import numpy as np
 import pandas as pd
 
 from scripts.prepare_windows import HORIZONTES, ROOT, SNAPSHOT, VENTANA
+
+VARIABLES_PRECIO = ["brent", "wti", "gas_natural", "usd_por_eur", "cny_por_usd",
+                    *[f"{f}_fut_{c}" for f in ("brent", "wti") for c in ("Open", "High", "Low", "Close")],
+                    "cobre", "oro", "indice_dolar", "cesta_opep"]
+DESTINOS = {"niveles": "escalado_validacion.zip", "variaciones": "escalado_validacion_variaciones.zip"}
+
+
+def a_variaciones(valores):
+    """Variación logarítmica diaria × 100 de las variables de precio; el resto no cambia."""
+    resultado = valores.copy()
+    for v in VARIABLES_PRECIO:
+        actual, anterior = valores[v], valores[v].shift(1)
+        validos = (actual > 0) & (anterior > 0)
+        resultado[v] = (100 * np.log(actual.where(validos) / anterior.where(validos))).where(validos)
+    return resultado
 
 
 def filas_de_ventanas(calendario, origenes):
@@ -23,6 +45,9 @@ def filas_de_ventanas(calendario, origenes):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--entradas", choices=DESTINOS, default="niveles")
+    entradas = parser.parse_args().entradas
     carpeta = ROOT / "data/processed" / SNAPSHOT
     diario = pd.read_csv(carpeta / "entradas_diarias.csv", index_col="fecha", parse_dates=["fecha"])
     particiones = pd.read_csv(carpeta / "particiones_validacion.csv", parse_dates=["fecha_origen"])
@@ -33,10 +58,16 @@ def main():
     indicadores = diario[[f"{v}_disponible" for v in variables]]
     if not np.array_equal(indicadores.to_numpy(), valores.notna().to_numpy()):
         raise ValueError("Los indicadores de disponibilidad no coinciden con los valores.")
+    if entradas == "variaciones":
+        if not set(VARIABLES_PRECIO) <= set(variables):
+            raise ValueError("Faltan variables de precio en la tabla diaria.")
+        valores = a_variaciones(valores)
+        indicadores = valores.notna().astype(indicadores.dtypes.iloc[0])
+        indicadores.columns = [f"{v}_disponible" for v in variables]
     if particiones.duplicated(["corte", "horizonte", "fecha_origen"]).any():
         raise ValueError("Origen repetido dentro de una partición.")
 
-    destino = carpeta / "escalado_validacion.zip"
+    destino = carpeta / DESTINOS[entradas]
     with tempfile.NamedTemporaryFile(dir=carpeta, delete=False) as archivo:
         temporal = Path(archivo.name)
     try:
@@ -66,6 +97,9 @@ def main():
                         "media": medias.to_dict(), "desviacion": desviaciones.to_dict(),
                         "divisor": divisores.to_dict(), "n_disponibles": ajuste.count().to_dict(),
                     }
+                    if entradas == "variaciones":
+                        parametros["entradas"] = entradas
+                        parametros["variables_en_variacion"] = VARIABLES_PRECIO
                     prefijo = f"{corte}/h{horizonte:03d}"
                     salida.writestr(f"{prefijo}/escalador.json", json.dumps(parametros, indent=2, allow_nan=False))
                     salida.writestr(f"{prefijo}/entradas.csv", tabla.to_csv(index_label="fecha"))
