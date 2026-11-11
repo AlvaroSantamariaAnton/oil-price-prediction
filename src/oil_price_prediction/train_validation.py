@@ -34,6 +34,9 @@ OBJETIVOS = ("precio", "cambio", "porcentaje")
 # niveles: entradas escaladas en nivel (E1–E10; también si el campo falta).
 # variaciones: precios como variación logarítmica diaria (scripts/prepare_scalers.py --entradas variaciones).
 ESCALADOS = {"niveles": "escalado_validacion.zip", "variaciones": "escalado_validacion_variaciones.zip"}
+# spot: el cambio se mide desde el último Brent spot admisible (E2–E13; también si el campo falta).
+# futuros: desde ese spot actualizado con el futuro de Brent (ingenuo con futuros), si existe.
+BASES = ("spot", "futuros")
 
 
 def tasa_del_horizonte(tasa, h):
@@ -61,7 +64,29 @@ class Regresor(nn.Module):
         return self.salida(secuencia[:, -1]).squeeze(-1)
 
 
-def cargar_datos(corte, h, objetivo, tipo_entradas="niveles"):
+def ingenuo_con_futuros(carpeta):
+    """Último spot admisible actualizado con el futuro de Brent, por fecha de origen.
+
+    Valor = spot admisible × cierre admisible del futuro en el origen / último cierre observado del
+    futuro en o antes de la fecha de observación de ese spot. Falta (NaN) si no hay spot, futuro en el
+    origen o futuro anterior al spot, o si algún precio no es positivo.
+    """
+    d = pd.read_csv(carpeta / "entradas_diarias.csv", parse_dates=["brent_origen", "brent_fut_Close_origen"],
+                    usecols=["fecha", "brent", "brent_disponible", "brent_origen", "brent_fut_Close",
+                             "brent_fut_Close_disponible", "brent_fut_Close_origen"])
+    observados = (d.loc[d.brent_fut_Close_disponible == 1, ["brent_fut_Close_origen", "brent_fut_Close"]]
+                  .drop_duplicates("brent_fut_Close_origen").set_index("brent_fut_Close_origen").brent_fut_Close.sort_index())
+    if not observados.index.is_unique:
+        raise ValueError("Cierre del futuro repetido con distinta fecha de observación.")
+    futuro_base = pd.Series(observados.reindex(d.brent_origen, method="ffill").to_numpy(), index=d.index)
+    futuro_base[d.brent_origen.isna()] = np.nan
+    validos = ((d.brent_disponible == 1) & (d.brent_fut_Close_disponible == 1) & (d.brent > 0)
+               & (d.brent_fut_Close > 0) & (futuro_base > 0))
+    valor = (d.brent * d.brent_fut_Close / futuro_base).where(validos)
+    return pd.Series(valor.to_numpy(), index=d.fecha, name="prediccion_ingenua_futuros")
+
+
+def cargar_datos(corte, h, objetivo, tipo_entradas="niveles", tipo_base="spot"):
     carpeta = ROOT / "data/processed" / SNAPSHOT
     with ZipFile(carpeta / ESCALADOS[tipo_entradas]) as z:
         base = f"{corte}/h{h:03d}/"
@@ -91,6 +116,11 @@ def cargar_datos(corte, h, objetivo, tipo_entradas="niveles"):
         muestras = muestras.loc[~sin_base]
         if not np.isfinite(muestras.brent).all() or not (muestras.brent > 0).all():
             raise ValueError("Brent admisible no finito o no positivo en el origen.")
+    futuros = ingenuo_con_futuros(carpeta)
+    if tipo_base == "futuros":
+        # Base actualizada con futuros cuando existe; antes del futuro de Brent (2007), el spot.
+        actualizada = futuros.reindex(muestras.fecha_origen).to_numpy()
+        muestras = muestras.assign(brent=np.where(np.isnan(actualizada), muestras.brent, actualizada))
     tensores, fechas, bases = {}, {}, {}
     for tramo in ("aprendizaje", "interno", "validacion"):
         filas = muestras.loc[muestras.tramo == tramo]
@@ -115,9 +145,12 @@ def cargar_datos(corte, h, objetivo, tipo_entradas="niveles"):
     ref = referencia.loc[(referencia.corte == corte) & (referencia.horizonte == h)].set_index("fecha_origen").sort_index()
     if not anual.index.equals(ref.index) or not np.array_equal(anual.brent_objetivo, ref.brent_objetivo):
         raise ValueError("Las muestras de validación difieren de la referencia ingenua.")
-    if objetivo != "precio" and not np.array_equal(bases["validacion"], ref.prediccion_ingenua.to_numpy(dtype="float32")):
-        raise ValueError("El Brent base difiere de la predicción ingenua.")
-    return tensores, fechas, ref.copy(), escalador, bases
+    ref = ref.copy()
+    ref["prediccion_ingenua_futuros"] = futuros.reindex(ref.index).to_numpy()
+    referencia_base = ref.prediccion_ingenua_futuros if tipo_base == "futuros" else ref.prediccion_ingenua
+    if objetivo != "precio" and not np.array_equal(bases["validacion"], referencia_base.to_numpy(dtype="float32")):
+        raise ValueError("El Brent base difiere de la predicción ingenua correspondiente.")
+    return tensores, fechas, ref, escalador, bases
 
 
 @torch.inference_mode()
@@ -198,13 +231,16 @@ def main():
     tipo_entradas = c.get("entradas", "niveles")
     if tipo_entradas not in ESCALADOS:
         parser.error(f"entradas debe ser uno de {tuple(ESCALADOS)}.")
+    tipo_base = c.get("base", "spot")
+    if tipo_base not in BASES or (tipo_base == "futuros" and c.get("objetivo", "precio") == "precio"):
+        parser.error(f"base debe ser uno de {BASES}; `futuros` requiere un objetivo relativo a la base.")
     if not re.fullmatch(r"E[0-9]+", c["experimento"] or "") or not torch.cuda.is_available():
         parser.error("Se requiere un nombre de experimento E<n> y CUDA disponible.")
     objetivo = c.get("objetivo", "precio")
     if objetivo not in OBJETIVOS:
         parser.error(f"objetivo debe ser uno de {OBJETIVOS}.")
     protocolo = (ROOT / c["protocolo"]).read_bytes()
-    datos, fechas, ref, escalador, brent_base = cargar_datos(a.corte, a.horizonte, objetivo, tipo_entradas)
+    datos, fechas, ref, escalador, brent_base = cargar_datos(a.corte, a.horizonte, objetivo, tipo_entradas, tipo_base)
     bases_tramo = {k: torch.from_numpy(v).cuda() for k, v in brent_base.items()}
     experimento = ROOT / "reports/experimentos" / c["experimento"]
     base = experimento / "validacion"
@@ -233,12 +269,17 @@ def main():
     error = ref.prediccion_red - ref.brent_objetivo
     mae, mse = float(error.abs().mean()), float((error ** 2).mean())
     ingenuo = float((ref.prediccion_ingenua - ref.brent_objetivo).abs().mean())
-    registro = dict(id=identificador, snapshot=SNAPSHOT, objetivo=objetivo, entradas=tipo_entradas,
+    con_futuros = ref.prediccion_ingenua_futuros.notna()
+    ingenuo_futuros = float((ref.prediccion_ingenua_futuros - ref.brent_objetivo)[con_futuros].abs().mean())
+    mae_con_futuros = float(error[con_futuros].abs().mean())
+    registro = dict(id=identificador, snapshot=SNAPSHOT, objetivo=objetivo, entradas=tipo_entradas, base=tipo_base,
                     tasa_aprendizaje=tasa, arquitectura=a.arquitectura, unidades=a.unidades,
                     horizonte=a.horizonte, corte=a.corte, configuracion="../../config.json",
                     parametros=sum(p.numel() for p in modelo.parameters()), mejor_epoca=mejor,
                     segundos_entrenamiento=segundos, mae=mae, mse=mse, rmse=mse**0.5, mae_ingenuo=ingenuo,
-                    mejora_porcentual=100*(1-mae/ingenuo), python=platform.python_version(),
+                    mejora_porcentual=100*(1-mae/ingenuo), origenes_con_futuros=int(con_futuros.sum()),
+                    mae_ingenuo_futuros=ingenuo_futuros,
+                    mejora_frente_futuros=100*(1-mae_con_futuros/ingenuo_futuros), python=platform.python_version(),
                     torch=torch.__version__, cuda=torch.version.cuda, cudnn=torch.backends.cudnn.version(),
                     dispositivo=torch.cuda.get_device_name(), script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                     protocolo_sha256=hashlib.sha256(protocolo).hexdigest(),
@@ -259,7 +300,8 @@ def main():
         ax.figure.savefig(carpeta / "curvas.png", bbox_inches="tight")
         plt.close(ax.figure)
         carpeta.rename(destino)
-    print(f"Mejor época {mejor}; MAE red {mae:.4f}; MAE ingenuo {ingenuo:.4f}; mejora {registro['mejora_porcentual']:.2f} %")
+    print(f"Mejor época {mejor}; MAE red {mae:.4f}; MAE ingenuo {ingenuo:.4f}; mejora {registro['mejora_porcentual']:.2f} %; "
+          f"frente al ingenuo con futuros {registro['mejora_frente_futuros']:.2f} %")
     print(destino)
 
 
