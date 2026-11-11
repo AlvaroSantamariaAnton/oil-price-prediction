@@ -1,8 +1,12 @@
 """Promedio de semillas en la validación anual y selección entre familias de réplicas.
 
-Familias: objetivo `cambio` (E2, E3, E4) y objetivo `porcentaje` (E5, E6, E7).
+Cada familia indica qué réplicas (una por semilla) se promedian en cada horizonte:
+- cambio: E2, E3 y E4 en los tres horizontes.
+- porcentaje: E5, E6 y E7 (descartada según su regla; se muestra como registro).
+- cambio_tasa_menor: +5 de E2–E4 y +63/+252 de E8–E10 (tasa 0,0001).
+La selección compara los candidatos de `cambio` y `cambio_tasa_menor`.
 Solo lee predicciones de validación ya guardadas; no entrena ni consulta el test.
-Las reglas están fijadas en docs/protocolo_experimento.md («Promedio de semillas» y «E5»).
+Las reglas están fijadas en docs/protocolo_experimento.md.
 """
 
 import glob
@@ -16,25 +20,36 @@ from scripts.evaluate_validation_uncertainty import (ARQUITECTURAS, CORTES, REPL
                                                      indices_bloques, mejora)
 from scripts.prepare_windows import HORIZONTES, ROOT
 
-FAMILIAS = {"cambio": ("E2", "E3", "E4"), "porcentaje": ("E5", "E6", "E7")}
+CAMBIO = ("E2", "E3", "E4")
+FAMILIAS = {
+    "cambio": {h: CAMBIO for h in HORIZONTES},
+    "porcentaje": {h: ("E5", "E6", "E7") for h in HORIZONTES},
+    "cambio_tasa_menor": {5: CAMBIO, 63: ("E8", "E9", "E10"), 252: ("E8", "E9", "E10")},
+}
+OBJETIVO = {"cambio": "cambio", "porcentaje": "porcentaje", "cambio_tasa_menor": "cambio"}
+SELECCION = ("cambio", "cambio_tasa_menor")
 
 
-def cargar(objetivo, replicas):
-    predicciones, tiempos, semillas = {}, {}, set()
-    for e in replicas:
-        config = json.loads((ROOT / "reports/experimentos" / e / "config.json").read_text(encoding="utf-8"))
-        if config["objetivo"] != objetivo:
-            raise ValueError(f"{e} no tiene el objetivo {objetivo}.")
-        semillas.add(config["semilla"])
-        for carpeta in glob.glob(str(ROOT / "reports/experimentos" / e / "validacion" / "*")):
-            r = json.loads(Path(carpeta, "registro.json").read_text(encoding="utf-8"))
-            clave = (e, r["arquitectura"], r["horizonte"], r["unidades"], r["corte"])
-            if clave in predicciones:
-                raise ValueError(f"Ajuste duplicado: {clave}")
-            predicciones[clave] = pd.read_csv(Path(carpeta, "predicciones.csv"))
-            tiempos[r["arquitectura"]] = tiempos.get(r["arquitectura"], 0.0) + r["segundos_entrenamiento"]
-    if len(semillas) != len(replicas) or len(predicciones) != 72 * len(replicas):
-        raise ValueError("Faltan ajustes o se repite una semilla.")
+def cargar(familia):
+    predicciones, tiempos = {}, {}
+    for h, replicas in FAMILIAS[familia].items():
+        semillas = set()
+        for e in replicas:
+            config = json.loads((ROOT / "reports/experimentos" / e / "config.json").read_text(encoding="utf-8"))
+            if config["objetivo"] != OBJETIVO[familia] or h not in config["horizontes_fechas_brent"]:
+                raise ValueError(f"{e} no corresponde a la familia {familia} a +{h}.")
+            semillas.add(config["semilla"])
+            for carpeta in glob.glob(str(ROOT / "reports/experimentos" / e / "validacion" / f"*_h{h:03d}_*")):
+                r = json.loads(Path(carpeta, "registro.json").read_text(encoding="utf-8"))
+                clave = (e, r["arquitectura"], h, r["unidades"], r["corte"])
+                if r["horizonte"] != h or clave in predicciones:
+                    raise ValueError(f"Ajuste inesperado o duplicado: {clave}")
+                predicciones[clave] = pd.read_csv(Path(carpeta, "predicciones.csv"))
+                tiempos[r["arquitectura"]] = tiempos.get(r["arquitectura"], 0.0) + r["segundos_entrenamiento"]
+        if len(semillas) != len(replicas):
+            raise ValueError(f"{familia} +{h}: se repite una semilla.")
+    if len(predicciones) != 24 * sum(len(r) for r in FAMILIAS[familia].values()):
+        raise ValueError(f"{familia}: faltan ajustes.")
     return predicciones, tiempos
 
 
@@ -49,13 +64,14 @@ def promediar(predicciones, replicas, a, h, u, c):
             [np.abs(p.prediccion_red.to_numpy() - base.brent_objetivo.to_numpy()) for p in partes])
 
 
-def evaluar_familia(objetivo, replicas):
-    predicciones, tiempos = cargar(objetivo, replicas)
+def evaluar_familia(familia):
+    predicciones, tiempos = cargar(familia)
     resultados = {}
-    print(f"=== Objetivo {objetivo} ({', '.join(replicas)}) ===")
+    print(f"=== {familia}: " + "; ".join(f"+{h} {', '.join(r)}" for h, r in FAMILIAS[familia].items()) + " ===")
     for a in ARQUITECTURAS:
         tamanos, anuales_sel = {}, {}
         for h in HORIZONTES:
+            replicas = FAMILIAS[familia][h]
             medias = {}
             for u in (32, 64):
                 anuales = [mejora(*promediar(predicciones, replicas, a, h, u, c)[:2]) for c in CORTES]
@@ -69,8 +85,8 @@ def evaluar_familia(objetivo, replicas):
                   + " / ".join(f"{x:+.2f}" for x in medias[u][1])
                   + "  | cada semilla " + " / ".join(f"{x:+.2f}" for x in individuales))
         puntuacion = np.mean(sum(anuales_sel.values(), []))
-        resultados[objetivo, a] = dict(puntuacion=puntuacion, tamanos=tamanos, tiempo=tiempos[a],
-                                       predicciones=predicciones, replicas=replicas)
+        resultados[familia, a] = dict(puntuacion=puntuacion, tamanos=tamanos, tiempo=tiempos[a],
+                                      predicciones=predicciones, familia=familia)
         print(f"{a:4s} GLOBAL {puntuacion:7.2f} %  tamaños {tamanos}  pares positivos "
               f"{sum(x > 0 for x in sum(anuales_sel.values(), []))}/12  tiempo {tiempos[a]:.2f} s\n")
     return resultados
@@ -79,18 +95,19 @@ def evaluar_familia(objetivo, replicas):
 def main():
     rng = np.random.default_rng(SEMILLA)
     resultados = {}
-    for objetivo, replicas in FAMILIAS.items():
-        resultados.update(evaluar_familia(objetivo, replicas))
-    mejor = max(resultados, key=lambda k: resultados[k]["puntuacion"])
-    empatados = [k for k in resultados if resultados[mejor]["puntuacion"] - resultados[k]["puntuacion"] <= 1]
-    elegido = min(empatados, key=lambda k: resultados[k]["tiempo"])
+    for familia in FAMILIAS:
+        resultados.update(evaluar_familia(familia))
+    candidatos = {k: v for k, v in resultados.items() if k[0] in SELECCION}
+    mejor = max(candidatos, key=lambda k: candidatos[k]["puntuacion"])
+    empatados = [k for k in candidatos if candidatos[mejor]["puntuacion"] - candidatos[k]["puntuacion"] <= 1]
+    elegido = min(empatados, key=lambda k: candidatos[k]["tiempo"])
     print(f"Mejor puntuación: {mejor}; dentro de 1 pp: {empatados}; elegido: {elegido}")
-    r = resultados[elegido]
+    r = candidatos[elegido]
     for h in HORIZONTES:
         if h == max(HORIZONTES):
             continue
         u = r["tamanos"][h]
-        datos = {c: promediar(r["predicciones"], r["replicas"], elegido[1], h, u, c)[:2] for c in CORTES}
+        datos = {c: promediar(r["predicciones"], FAMILIAS[r["familia"]][h], elegido[1], h, u, c)[:2] for c in CORTES}
         indices = {c: indices_bloques(rng, len(datos[c][0]), h, REPLICAS) for c in CORTES}
         muestras = np.mean([mejora(datos[c][0][indices[c]], datos[c][1][indices[c]]) for c in CORTES], axis=0)
         dm, valor_p = diebold_mariano(np.concatenate([datos[c][0] - datos[c][1] for c in CORTES]), h)
