@@ -33,10 +33,17 @@ SERIES_YAHOO = {"BZ=F": "brent_fut", "CL=F": "wti_fut", "HG=F": "cobre", "GC=F":
 
 
 def fuentes_en_vivo(inicio, fin, carpeta):
-    """Descarga las mismas fuentes que el estudio (FRED, Yahoo, OPEP y tabla del BCE)."""
+    """Descarga las mismas fuentes que el estudio (FRED, Yahoo, OPEP y tabla del BCE).
+
+    FRED y Yahoo son obligatorias. La web de la OPEP rechaza las peticiones desde servidores en la nube
+    (p. ej. GitHub Actions): si falla, la cesta se trata como ausente, igual que cuando caduca, y se
+    avisa (en el test, cambia la previsión de media entre 0,13 y 0,27 USD). Si falla la tabla del BCE,
+    se usa el mismo tipo de depósito publicado en FRED (ECBDFR), que da resultados idénticos.
+    Devuelve las fuentes y la lista de avisos.
+    """
     from scripts import download_raw_data as raw
     from scripts.download_all_data import ECB_URL, OPEC_URL, obtener
-    fuentes = {"yahoo": {}}
+    fuentes, avisos = {"yahoo": {}}, []
     for serie, nombre in SERIES_FRED.items():
         df = raw.descargar_fuente("fred", serie, nombre, inicio, fin)
         raw.validar_fuente(df, inicio, fin)
@@ -45,13 +52,23 @@ def fuentes_en_vivo(inicio, fin, carpeta):
         df = raw.descargar_fuente("yahoo", serie, nombre, inicio, fin)
         raw.validar_fuente(df, inicio, fin)
         fuentes["yahoo"][nombre] = df
-    (carpeta / "opep.xml").write_bytes(obtener(OPEC_URL))
-    (carpeta / "bce.html").write_bytes(obtener(ECB_URL))
-    fuentes["cesta_opep"] = cesta_opep(carpeta / "opep.xml")
-    fuentes["tipo_bce"] = deposito_bce(carpeta / "bce.html")
+    try:
+        (carpeta / "opep.xml").write_bytes(obtener(OPEC_URL))
+        fuentes["cesta_opep"] = cesta_opep(carpeta / "opep.xml")
+    except Exception as exc:
+        fuentes["cesta_opep"] = pd.Series(dtype=float, index=pd.DatetimeIndex([]), name="cesta_opep")
+        avisos.append(f"No se pudo descargar la cesta OPEP ({type(exc).__name__}); se trata como dato ausente.")
+    try:
+        (carpeta / "bce.html").write_bytes(obtener(ECB_URL))
+        fuentes["tipo_bce"] = deposito_bce(carpeta / "bce.html")
+    except Exception as exc:
+        df = raw.descargar_fuente("fred", "ECBDFR", "tipo_bce", inicio, fin)
+        raw.validar_fuente(df, inicio, fin)
+        fuentes["tipo_bce"] = df["tipo_bce"]
+        avisos.append(f"No se pudo descargar la tabla del BCE ({type(exc).__name__}); el tipo de depósito se ha tomado de FRED.")
     if set(fuentes) != {"brent", *FRED, "yahoo", "cesta_opep", "tipo_bce"} or set(fuentes["yahoo"]) != set(YAHOO):
         raise ValueError("Faltan fuentes.")
-    return fuentes
+    return fuentes, avisos
 
 
 def calendario(indice_brent, origen):
@@ -156,11 +173,12 @@ def main():
         parser.error("La fecha de origen debe ser de lunes a viernes.")
     carpeta_modelo, config = cargar_modelo(a.modelo, a.repo_modelo)
     with tempfile.TemporaryDirectory() as tmp:
+        avisos = []
         if a.paquete:
             fuentes, fechas_paquete = fuentes_paquete()
             fechas = calendario(fechas_paquete, origen)
         else:
-            fuentes = fuentes_en_vivo("2000-01-01", hoy.isoformat(), Path(tmp))
+            fuentes, avisos = fuentes_en_vivo("2000-01-01", hoy.isoformat(), Path(tmp))
             fechas = calendario(fuentes["brent"].loc["2000-01-01":].index, origen)
         tabla, resultado = predecir(fuentes, fechas, origen, carpeta_modelo, config)
     brent = fuentes["brent"].dropna()
@@ -170,7 +188,7 @@ def main():
         hora_referencia="09:00 Europe/Madrid", fuente_datos="paquete del estudio" if a.paquete else "descarga en vivo",
         modelo=dict(version=config["version"], arquitectura=config["arquitectura"], semillas=config["semillas"],
                     entrenamiento=config["entrenamiento"]["frontera"], nivel_intervalo=config["intervalo"]["nivel"]),
-        **resultado, fuentes=frescura(tabla, origen),
+        **resultado, fuentes=frescura(tabla, origen), avisos=avisos,
         historico=dict(brent_spot=[[d.date().isoformat(), round(float(v), 2)] for d, v in brent[brent.index <= origen].items()],
                        # Solo cierres ya conocidos a las 09:00 del origen (Yahoo puede dar la sesión en curso).
                        brent_futuro=[[d.date().isoformat(), round(float(v), 2)] for d, v in futuro[futuro.index < origen].items()]))
@@ -181,6 +199,8 @@ def main():
     for p in resultado["previsiones"]:
         print(f"  +{p['horizonte']} ({p['fecha_objetivo']}): {p['precio']:.2f} USD "
               f"[{p['intervalo'][0]:.2f}, {p['intervalo'][1]:.2f}]")
+    for aviso in avisos:
+        print(f"Aviso: {aviso}")
     print(destino)
     if a.repo_datos:
         if a.paquete:

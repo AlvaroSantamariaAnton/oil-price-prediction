@@ -16,6 +16,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   estado.hidden = true;
   document.getElementById("contenido").hidden = false;
+  if (prevision.avisos?.length) {
+    document.getElementById("avisos").innerHTML = `<div class="aviso" style="margin-bottom:20px">
+      <p><strong>Datos incompletos hoy.</strong> ${prevision.avisos.join(" ")} En el test del estudio, prescindir de la cesta OPEP
+        cambió las previsiones de media entre 0,13 y 0,27 USD, muy por debajo del margen de error.</p></div>`;
+  }
   pintarCabecera(prevision);
   pintarPrevisiones(prevision);
   pintarGrafica(prevision);
