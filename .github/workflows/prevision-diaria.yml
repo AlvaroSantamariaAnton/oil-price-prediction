@@ -1,0 +1,66 @@
+# Previsión diaria del Brent: descarga los datos, predice con los modelos ONNX publicados en
+# Hugging Face y sube prediccion.json (y su copia en historial/) al repositorio de datos.
+# La web (Vercel) lee ese archivo, así que no hace falta volver a desplegarla.
+name: Previsión diaria
+
+on:
+  schedule:
+    # GitHub usa UTC. Se programan dos horas y solo sigue la que cae a las 09:xx de Madrid:
+    # 07:15 UTC en horario de verano y 08:15 UTC en horario de invierno.
+    - cron: "15 7,8 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: "Ejecutar aunque no sean las 09:xx de Madrid"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prevision-diaria
+  cancel-in-progress: false
+
+jobs:
+  prevision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Comprobar la hora de Madrid
+        id: hora
+        run: |
+          hora=$(TZ=Europe/Madrid date +%H)
+          echo "Hora en Madrid: $(TZ=Europe/Madrid date '+%Y-%m-%d %H:%M')"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.forzar }}" = "true" ]; then
+            echo "seguir=true" >> "$GITHUB_OUTPUT"
+          elif [ "$hora" = "09" ]; then
+            echo "seguir=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No son las 09:xx en Madrid; esta ejecución no hace nada."
+            echo "seguir=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.hora.outputs.seguir == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.hora.outputs.seguir == 'true'
+        with:
+          python-version: "3.13"
+
+      - name: Instalar dependencias (sin PyTorch)
+        if: steps.hora.outputs.seguir == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install "pandas==3.1.0" "numpy==2.5.4" "yfinance==1.8.0" "curl_cffi==0.17.0" \
+            "beautifulsoup4==4.15.0" "onnxruntime==1.31.1" "huggingface-hub==2.4.0"
+
+      - name: Calcular y publicar la previsión
+        if: steps.hora.outputs.seguir == 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -m src.oil_price_prediction.actualizar \
+            --repo-modelo AvaroSantamaria/brent-rnn \
+            --repo-datos AvaroSantamaria/brent-predicciones
