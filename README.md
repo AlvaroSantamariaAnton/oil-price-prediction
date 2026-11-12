@@ -494,11 +494,20 @@ abril, julio y octubre con los pasos y la versión publicada; no reentrena y no 
 - **Horizontes largos con poca información.** A +252, cada año equivale a una observación independiente;
   cuatro años de validación y tres de test no permiten conclusiones firmes.
 - **Intervalos de anchura fija** en USD: cubren menos de lo nominal en periodos muy volátiles.
+- **La previsión diaria no usa la cesta OPEP.** La web de la OPEP bloquea las descargas desde la nube, así que
+  en GitHub Actions la cesta se trata como dato ausente, aunque el modelo sí la usó al entrenar. Con el modelo
+  actual, la diferencia medida es de +0,54 / +0,01 / −0,09 USD a +5 / +63 / +252, muy por debajo del margen.
 - **El ajuste final no aprende directamente de 2019–2022**, que se usa como tramo de parada temprana; en los
   reentrenamientos ocurre lo mismo con los años más recientes.
 
 ## Posibles mejoras
 
-- Web: seguimiento de las previsiones pasadas frente a los precios reales, a partir del historial publicado.
-- Previsión diaria: encontrar una fuente de la cesta OPEP accesible desde la nube (con valores iguales a los del
-  XML oficial) para usarla también en GitHub Actions.
+- **Seguimiento de previsiones** en la web: comparar las previsiones pasadas con los precios reales a partir del
+  historial publicado. Para no descargar cada archivo del historial (unos 236 KB cada uno), la tarea diaria
+  mantendría un `seguimiento.json` compacto. Las primeras previsiones con precio real estarán disponibles a finales
+  de noviembre de 2026 (el spot se publica con una semana de retraso).
+- **Cesta OPEP en la previsión diaria:** no se ha encontrado una fuente gratuita accesible desde la nube. El XML
+  oficial y el JSON de la OPEP rechazan esas descargas, Nasdaq Data Link bloquea el acceso automático y Harvest
+  Portal solo enlaza a la OPEP. Alternativas: un servicio de pago como OilPriceAPI (dice tomar la serie del mismo
+  XML; habría que comprobar cobertura, licencia y que los valores coinciden) o un equipo propio que suba cada
+  mañana el XML a Hugging Face antes de las 09:00.
