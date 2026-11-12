@@ -61,6 +61,7 @@ oil-price-prediction/
 │   ├── download_raw_data.py            # Series de FRED y Yahoo sin rellenar
 │   ├── download_alfred_data.py         # Versiones históricas de FRED (ALFRED) para la auditoría
 │   ├── download_all_data.py            # Paquete completo: FRED/Yahoo + ALFRED + OPEP + BCE
+│   ├── decidir_prevision.py            # Decide si una ejecución programada debe calcular la previsión
 │   ├── prepare_daily_inputs.py         # Tabla diaria a las 09:00 con reglas de disponibilidad
 │   ├── prepare_windows.py              # Ventanas de 60 fechas y objetivos a +5/+63/+252
 │   ├── prepare_splits.py               # Particiones de validación (2018–2021) y del ajuste final (2023)
@@ -370,10 +371,14 @@ ejemplo, `predicciones_test.csv`) o restaurar las versionadas con `git restore r
 
 ### Cómo funciona
 
-1. **Cada mañana laborable a las 09:15 de Madrid**, GitHub Actions
+1. **Cada mañana laborable, a partir de las 09:15 de Madrid**, GitHub Actions
    ([`prevision-diaria.yml`](.github/workflows/prevision-diaria.yml)) descarga los datos en vivo, construye la
    tabla con las mismas reglas de disponibilidad, descarga el modelo de Hugging Face, predice con
    **onnxruntime** (sin PyTorch) y sube `prediccion.json` y una copia en `historial/` al repositorio de datos.
+   GitHub retrasa o se salta a veces las tareas programadas, así que el flujo se programa cada hora (de 09:15 a
+   15:15 en invierno y de 09:15 a 16:15 en verano, hora de Madrid) y cada ejecución
+   ([`decidir_prevision.py`](scripts/decidir_prevision.py)) solo calcula si aún no hay una previsión de hoy
+   hecha a partir de las 09:00. Una previsión manual de madrugada no cuenta: la siguiente ejecución la sustituye.
 2. **La web** (carpeta `web/`, desplegada en Vercel con Root Directory `web`) es estática: lee esa previsión
    de Hugging Face y los datos del estudio de `web/datos/estudio.json`.
 

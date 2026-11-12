@@ -5,13 +5,16 @@ name: Previsión diaria
 
 on:
   schedule:
-    # GitHub usa UTC. Se programan dos horas y solo sigue la que cae a las 09:xx de Madrid:
-    # 07:15 UTC en horario de verano y 08:15 UTC en horario de invierno.
-    - cron: "15 7,8 * * 1-5"
+    # GitHub usa UTC y a veces retrasa o se salta las tareas programadas. Se programa cada hora a las
+    # :15 entre las 07:15 y las 14:15 UTC (de 08:15 a 15:15 en invierno y de 09:15 a 16:15 en verano,
+    # hora de Madrid). Cada ejecución calcula solo si hace falta (scripts/decidir_prevision.py): a partir
+    # de las 09:00 de Madrid y si aún no hay una previsión de hoy calculada desde esa hora. Una previsión
+    # manual de madrugada no cuenta, así que la siguiente ejecución programada la sustituye.
+    - cron: "15 7-14 * * 1-5"
   workflow_dispatch:
     inputs:
       forzar:
-        description: "Ejecutar aunque no sean las 09:xx de Madrid"
+        description: "Calcular aunque ya haya una previsión de hoy o no sean las 09:00 de Madrid"
         type: boolean
         default: true
 
@@ -27,37 +30,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Comprobar la hora de Madrid
-        id: hora
-        run: |
-          hora=$(TZ=Europe/Madrid date +%H)
-          echo "Hora en Madrid: $(TZ=Europe/Madrid date '+%Y-%m-%d %H:%M')"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.forzar }}" = "true" ]; then
-            echo "seguir=true" >> "$GITHUB_OUTPUT"
-          elif [ "$hora" = "09" ]; then
-            echo "seguir=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No son las 09:xx en Madrid; esta ejecución no hace nada."
-            echo "seguir=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/checkout@v5
-        if: steps.hora.outputs.seguir == 'true'
+
+      - name: Decidir si hace falta calcular la previsión
+        id: decision
+        env:
+          FORZAR: ${{ github.event_name == 'workflow_dispatch' && inputs.forzar }}
+        run: |
+          python3 scripts/decidir_prevision.py --forzar "$FORZAR" \
+            --url https://huggingface.co/datasets/AvaroSantamaria/brent-predicciones/resolve/main/prediccion.json
 
       - uses: actions/setup-python@v6
-        if: steps.hora.outputs.seguir == 'true'
+        if: steps.decision.outputs.seguir == 'true'
         with:
           python-version: "3.13"
 
       - name: Instalar dependencias (sin PyTorch)
-        if: steps.hora.outputs.seguir == 'true'
+        if: steps.decision.outputs.seguir == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install "pandas==3.1.0" "numpy==2.5.4" "yfinance==1.8.0" "curl_cffi==0.17.0" \
             "beautifulsoup4==4.15.0" "onnxruntime==1.31.1" "huggingface-hub==2.4.0"
 
       - name: Calcular y publicar la previsión
-        if: steps.hora.outputs.seguir == 'true'
+        if: steps.decision.outputs.seguir == 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
