@@ -60,6 +60,17 @@ def main():
     carpeta = ROOT / "data/processed" / SNAPSHOT
     diario = pd.read_csv(carpeta / "entradas_diarias.csv", index_col="fecha", parse_dates=["fecha"])
     particiones = pd.read_csv(carpeta / archivo_particiones, parse_dates=["fecha_origen"])
+    destino = carpeta / (DESTINOS_FINAL if fase == "final" else DESTINOS)[entradas]
+    escribir_escalado(diario, particiones, destino, entradas, fase, cortes, tramo_evaluado, SNAPSHOT)
+
+
+def escribir_escalado(diario, particiones, destino, entradas, fase, cortes, tramo_evaluado, snapshot):
+    """Ajusta el escalador de cada corte y horizonte con las fechas de las ventanas de aprendizaje.
+
+    `tramo_evaluado` es "validacion", "test" o None (reentrenamiento: solo aprendizaje e interno).
+    `fase` se anota en el escalador salvo en validación.
+    """
+    carpeta = destino.parent
     if not diario.index.is_unique or not diario.index.is_monotonic_increasing:
         raise ValueError("El calendario diario debe ser único y cronológico.")
     variables = [c.removesuffix("_disponible") for c in diario if c.endswith("_disponible")]
@@ -75,8 +86,8 @@ def main():
         indicadores.columns = [f"{v}_disponible" for v in variables]
     if particiones.duplicated(["corte", "horizonte", "fecha_origen"]).any():
         raise ValueError("Origen repetido dentro de una partición.")
+    requeridos = {"aprendizaje", "interno"} | ({tramo_evaluado} if tramo_evaluado else set())
 
-    destino = carpeta / (DESTINOS_FINAL if fase == "final" else DESTINOS)[entradas]
     with tempfile.NamedTemporaryFile(dir=carpeta, delete=False) as archivo:
         temporal = Path(archivo.name)
     try:
@@ -84,7 +95,7 @@ def main():
             for corte in cortes:
                 for horizonte in HORIZONTES:
                     grupo = particiones.loc[(particiones.corte == corte) & (particiones.horizonte == horizonte)]
-                    if set(grupo.tramo) != {"aprendizaje", "interno", tramo_evaluado}:
+                    if set(grupo.tramo) != requeridos:
                         raise ValueError(f"Tramos incompletos en {corte}, +{horizonte}")
                     aprendizaje = grupo.loc[grupo.tramo == "aprendizaje", "fecha_origen"]
                     ajuste = valores.loc[filas_de_ventanas(diario.index, aprendizaje)]
@@ -100,7 +111,7 @@ def main():
                     tabla = escaladas.join(indicadores.loc[usadas])
                     tabla.insert(0, "fila_diaria", np.flatnonzero(usadas))
                     parametros = {
-                        "snapshot": SNAPSHOT, "corte": corte, "horizonte": horizonte,
+                        "snapshot": snapshot, "corte": corte, "horizonte": horizonte,
                         "fechas_aprendizaje": len(ajuste), "ddof": 0,
                         "orden_entradas": list(tabla.columns[1:]),
                         "media": medias.to_dict(), "desviacion": desviaciones.to_dict(),
@@ -109,7 +120,7 @@ def main():
                     if entradas == "variaciones":
                         parametros["entradas"] = entradas
                         parametros["variables_en_variacion"] = VARIABLES_PRECIO
-                    if fase == "final":
+                    if fase != "validacion":
                         parametros["fase"] = fase
                     prefijo = f"{corte}/h{horizonte:03d}"
                     salida.writestr(f"{prefijo}/escalador.json", json.dumps(parametros, indent=2, allow_nan=False))

@@ -1,0 +1,59 @@
+# Recordatorio trimestral de reentrenamiento: abre una issue con los pasos y la versión publicada
+# del modelo. No reentrena (el reentrenamiento se hace a mano, en local con GPU y revisando el informe).
+name: Recordatorio de reentrenamiento
+
+on:
+  schedule:
+    # 1 de enero, abril, julio y octubre a las 08:00 UTC.
+    - cron: "0 8 1 1,4,7,10 *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  recordatorio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Abrir la issue si no hay otra abierta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TITULO: "Recordatorio: reentrenar el modelo"
+          CONFIG_URL: https://huggingface.co/AvaroSantamaria/brent-rnn/resolve/main/config.json
+        run: |
+          abiertas=$(gh issue list --repo "$REPO" --state open --search "\"$TITULO\" in:title" --json title \
+            --jq "[.[] | select(.title == \"$TITULO\")] | length")
+          if [ "$abiertas" -gt 0 ]; then
+            echo "Ya hay una issue de recordatorio abierta; no se abre otra."
+            exit 0
+          fi
+          if config=$(curl -fsSL "$CONFIG_URL"); then
+            version=$(echo "$config" | jq -r '.version')
+            frontera=$(echo "$config" | jq -r '.entrenamiento.frontera')
+          else
+            version="(no se pudo leer config.json de Hugging Face)"
+            frontera="?"
+          fi
+          hoy=$(TZ=Europe/Madrid date +%Y-%m-%d)
+          cat > cuerpo.md <<EOF
+          Toca revisar si conviene reentrenar el modelo de la aplicación (frecuencia recomendada: cada 3–6 meses, o tras un acontecimiento importante en el mercado del petróleo).
+
+          **Versión publicada ahora:** \`$version\` (fecha de corte $frontera).
+
+          ### Pasos (en local, con la GPU y Poetry)
+
+          1. Actualizar \`main\` y comprobar que el árbol está limpio.
+          2. Si ha cambiado el código del entrenamiento o de la preparación desde el último reentreno, comprobar antes que se reproduce el estudio:
+             \`poetry run python -m src.oil_price_prediction.reentrenar --reproducir-estudio\`
+          3. Reentrenar con datos hasta hoy (necesita la descarga de la cesta OPEP, que falla desde la nube):
+             \`poetry run python -m src.oil_price_prediction.reentrenar\`
+          4. Revisar el informe de cordura (\`dist/reentrenos/reentreno-$hoy/informe_cordura.json\`): MAE en el tramo de parada temprana frente al ingenuo con futuros y previsión de hoy del modelo nuevo frente al publicado, con y sin la cesta OPEP. Es una comprobación de cordura, no una evaluación.
+          5. Si es razonable, publicar (etiqueta la versión anterior y la nueva):
+             \`poetry run python -m scripts.publicar_hf --repo AvaroSantamaria/brent-rnn --carpeta dist/reentrenos/reentreno-$hoy/modelo\`
+          6. Comprobar al día siguiente que la previsión diaria usa la versión nueva y cerrar esta issue.
+
+          Si se decide no reentrenar, cerrar la issue indicando el motivo.
+          EOF
+          gh issue create --repo "$REPO" --title "$TITULO" --body-file cuerpo.md

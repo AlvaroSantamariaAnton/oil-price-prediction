@@ -79,23 +79,27 @@ def ingenuo_con_futuros(carpeta):
     return ingenuo_con_futuros_tabla(d)
 
 
-def cargar_datos(corte, h, objetivo, tipo_entradas="niveles", tipo_base="spot", fase="validacion"):
+def cargar_datos(corte, h, objetivo, tipo_entradas="niveles", tipo_base="spot", fase="validacion",
+                 carpeta=None, snapshot=SNAPSHOT):
     """Tensores, fechas, tabla de referencia, escalador y bases por tramo.
 
     fase="validacion": tramos aprendizaje/interno/validacion y referencia ingenua de validación.
     fase="final": tramos aprendizaje/interno/test (particiones y escaladores finales); la tabla de
     test lleva las predicciones de las dos referencias, sin ninguna métrica.
+    fase="reentreno": solo aprendizaje/interno (reentrenamiento de la aplicación); sin tabla de referencia.
+    `carpeta` es la carpeta de datos preparados (por defecto, la del snapshot del estudio) y `snapshot`,
+    el identificador de los datos originales que debe figurar en el escalador.
     """
-    if fase not in ("validacion", "final") or (fase == "final" and objetivo == "precio"):
+    if fase not in ("validacion", "final", "reentreno") or (fase != "validacion" and objetivo == "precio"):
         raise ValueError("Fase desconocida o fase final con objetivo precio.")
-    evaluado = "validacion" if fase == "validacion" else "test"
-    carpeta = ROOT / "data/processed" / SNAPSHOT
+    evaluado = {"validacion": "validacion", "final": "test", "reentreno": None}[fase]
+    carpeta = ROOT / "data/processed" / SNAPSHOT if carpeta is None else Path(carpeta)
     with ZipFile(carpeta / (ESCALADOS if fase == "validacion" else ESCALADOS_FINAL)[tipo_entradas]) as z:
         base = f"{corte}/h{h:03d}/"
         escalador = json.loads(z.read(base + "escalador.json"))
         with z.open(base + "entradas.csv") as archivo:
             entradas = pd.read_csv(archivo, index_col="fila_diaria")
-    if (escalador["snapshot"], escalador["corte"], escalador["horizonte"]) != (SNAPSHOT, corte, h):
+    if (escalador["snapshot"], escalador["corte"], escalador["horizonte"]) != (snapshot, corte, h):
         raise ValueError("El escalador pertenece a otro ajuste.")
     if escalador.get("entradas", "niveles") != tipo_entradas or escalador.get("fase", "validacion") != fase:
         raise ValueError("El escalador corresponde a otro tipo de entradas o a otra fase.")
@@ -125,7 +129,7 @@ def cargar_datos(corte, h, objetivo, tipo_entradas="niveles", tipo_base="spot", 
         actualizada = futuros.reindex(muestras.fecha_origen).to_numpy()
         muestras = muestras.assign(brent=np.where(np.isnan(actualizada), muestras.brent, actualizada))
     tensores, fechas, bases = {}, {}, {}
-    for tramo in ("aprendizaje", "interno", evaluado):
+    for tramo in ("aprendizaje", "interno") + ((evaluado,) if evaluado else ()):
         filas = muestras.loc[muestras.tramo == tramo]
         if filas.empty or filas.fila_origen.isna().any():
             raise ValueError(f"Faltan ventanas en {tramo}.")
@@ -141,6 +145,8 @@ def cargar_datos(corte, h, objetivo, tipo_entradas="niveles", tipo_base="spot", 
             y = 100 * (y - torch.from_numpy(base)) / torch.from_numpy(base)
         tensores[tramo] = (torch.from_numpy(valores[posiciones]), y)
         fechas[tramo], bases[tramo] = filas, base
+    if fase == "reentreno":
+        return tensores, fechas, None, escalador, bases
     if fase == "final":
         # Tabla de test: predicciones de las dos referencias, sin calcular errores ni métricas.
         test = fechas["test"].set_index("fecha_origen")

@@ -59,8 +59,14 @@ def particionar(ventanas, diario):
 ANIO_TEST = 2023
 
 
-def particionar_final(ventanas, diario):
-    """Aprendizaje, interno y test para los ajustes finales, con la misma regla de fronteras."""
+def particionar_final(ventanas, diario, frontera=None, exigir_test=True):
+    """Aprendizaje, interno y test para los ajustes finales, con la misma regla de fronteras.
+
+    Sin `frontera`, es la primera mañana del calendario de 2023 (ajustes finales del estudio). El
+    reentrenamiento de la aplicación pasa la fecha de corte (hoy) y `exigir_test=False`: entonces no
+    hay orígenes de test y solo se devuelven aprendizaje e interno. La columna `corte` es el año de
+    la frontera.
+    """
     grupos, resumen = [], []
     if not diario.index.is_unique or not diario.index.is_monotonic_increasing:
         raise ValueError("El calendario diario debe ser único y cronológico.")
@@ -69,7 +75,8 @@ def particionar_final(ventanas, diario):
     datos = ventanas.join(diario, on="fecha_origen", validate="many_to_one")
     if not datos["brent_disponible"].isin([0, 1]).all():
         raise ValueError("Falta la disponibilidad del Brent en algún origen.")
-    frontera = diario.loc[str(ANIO_TEST)].index.min()
+    frontera = diario.loc[str(ANIO_TEST)].index.min() if frontera is None else pd.Timestamp(frontera)
+    corte = frontera.year
     for horizonte in HORIZONTES:
         serie = datos.loc[datos["horizonte"].eq(horizonte)].sort_values("fecha_origen")
         anteriores = serie.loc[serie["fecha_origen"] < frontera]
@@ -80,14 +87,15 @@ def particionar_final(ventanas, diario):
         candidatos = conocidos.iloc[:-n_interno]
         aprendizaje = candidatos.loc[candidatos["etiqueta_disponible_desde"] <= inicio_interno]
         test = serie.loc[(serie["fecha_origen"] >= frontera) & serie["brent_disponible"].eq(1)]
-        if aprendizaje.empty or interno.empty or test.empty:
+        if aprendizaje.empty or interno.empty or (exigir_test and test.empty):
             raise ValueError(f"Tramo vacío en el ajuste final, horizonte {horizonte}.")
-        for tramo, filas in (("aprendizaje", aprendizaje), ("interno", interno), ("test", test)):
-            grupos.append(filas.assign(corte=ANIO_TEST, tramo=tramo))
+        tramos = (("aprendizaje", aprendizaje), ("interno", interno)) + ((("test", test),) if len(test) else ())
+        for tramo, filas in tramos:
+            grupos.append(filas.assign(corte=corte, tramo=tramo))
         resumen.append({
-            "corte": ANIO_TEST, "h": horizonte, "inicio_interno": inicio_interno.date(),
+            "corte": corte, "h": horizonte, "inicio_interno": inicio_interno.date(),
             "inicio_test": frontera.date(), "aprendizaje": len(aprendizaje), "interno": len(interno),
-            "test": len(test), "ultimo_origen_test": test["fecha_origen"].max().date(),
+            "test": len(test), "ultimo_origen_test": test["fecha_origen"].max().date() if len(test) else None,
             "purga_interna": len(candidatos) - len(aprendizaje),
             "purga_frontera": len(anteriores) - len(conocidos),
             "test_sin_spot": int((serie["fecha_origen"] >= frontera).sum() - len(test)),

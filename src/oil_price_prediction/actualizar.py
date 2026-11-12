@@ -32,14 +32,15 @@ SERIES_FRED = {"DCOILBRENTEU": "brent", "DCOILWTICO": "wti", "DHHNGSP": "gas_nat
 SERIES_YAHOO = {"BZ=F": "brent_fut", "CL=F": "wti_fut", "HG=F": "cobre", "GC=F": "oro", "DX-Y.NYB": "indice_dolar"}
 
 
-def fuentes_en_vivo(inicio, fin, carpeta):
+def fuentes_en_vivo(inicio, fin, carpeta, opep_obligatoria=False):
     """Descarga las mismas fuentes que el estudio (FRED, Yahoo, OPEP y tabla del BCE).
 
     FRED y Yahoo son obligatorias. La web de la OPEP rechaza las peticiones desde servidores en la nube
     (p. ej. GitHub Actions): si falla, la cesta se trata como ausente, igual que cuando caduca, y se
-    avisa (en el test, cambia la previsión de media entre 0,13 y 0,27 USD). Si falla la tabla del BCE,
-    se usa el mismo tipo de depósito publicado en FRED (ECBDFR), que da resultados idénticos.
-    Devuelve las fuentes y la lista de avisos.
+    avisa (en el test, cambia la previsión de media entre 0,13 y 0,27 USD). Con `opep_obligatoria`
+    (reentrenamiento), el fallo detiene la ejecución: sin la cesta cambiaría la entrada en todo el
+    histórico. Si falla la tabla del BCE, se usa el mismo tipo de depósito publicado en FRED (ECBDFR),
+    que da resultados idénticos. Devuelve las fuentes y la lista de avisos.
     """
     from scripts import download_raw_data as raw
     from scripts.download_all_data import ECB_URL, OPEC_URL, obtener
@@ -56,6 +57,8 @@ def fuentes_en_vivo(inicio, fin, carpeta):
         (carpeta / "opep.xml").write_bytes(obtener(OPEC_URL))
         fuentes["cesta_opep"] = cesta_opep(carpeta / "opep.xml")
     except Exception as exc:
+        if opep_obligatoria:
+            raise RuntimeError("No se pudo descargar la cesta OPEP; es obligatoria para reentrenar.") from exc
         fuentes["cesta_opep"] = pd.Series(dtype=float, index=pd.DatetimeIndex([]), name="cesta_opep")
         avisos.append(f"No se pudo descargar la cesta OPEP ({type(exc).__name__}); se trata como dato ausente.")
     try:
@@ -187,7 +190,12 @@ def main():
         generado_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"), origen=origen.date().isoformat(),
         hora_referencia="09:00 Europe/Madrid", fuente_datos="paquete del estudio" if a.paquete else "descarga en vivo",
         modelo=dict(version=config["version"], arquitectura=config["arquitectura"], semillas=config["semillas"],
-                    entrenamiento=config["entrenamiento"]["frontera"], nivel_intervalo=config["intervalo"]["nivel"]),
+                    entrenamiento=config["entrenamiento"]["frontera"], nivel_intervalo=config["intervalo"]["nivel"],
+                    # Orígenes de aprendizaje y de parada temprana por horizonte (sin el test del estudio).
+                    tramos={h: {k: t[k] for k in ("aprendizaje", "interno") if k in t}
+                            for h, t in config["entrenamiento"].get("tramos", {}).items()},
+                    # Solo en versiones reentrenadas: no tienen test propio.
+                    cordura=config.get("comprobacion_cordura", {}).get("resumen_web")),
         **resultado, fuentes=frescura(tabla, origen), avisos=avisos,
         historico=dict(brent_spot=[[d.date().isoformat(), round(float(v), 2)] for d, v in brent[brent.index <= origen].items()],
                        # Solo cierres ya conocidos a las 09:00 del origen (Yahoo puede dar la sesión en curso).

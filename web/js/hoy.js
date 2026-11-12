@@ -17,9 +17,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   estado.hidden = true;
   document.getElementById("contenido").hidden = false;
   if (prevision.avisos?.length) {
+    const opep = prevision.modelo.cordura?.opep;
+    const efecto = opep
+      ? `Con este modelo, prescindir de la cesta OPEP cambió la previsión del ${fmtFecha(opep.origen)} en
+        ${Object.entries(opep.diferencias).map(([h, d]) => `${fmtSigno(d, 2)} USD a ${NOMBRES_HORIZONTE[h]}`).join(", ")}`
+      : "En el test del estudio, prescindir de la cesta OPEP cambió las previsiones de media entre 0,13 y 0,27 USD";
     document.getElementById("avisos").innerHTML = `<div class="aviso" style="margin-bottom:20px">
-      <p><strong>Datos incompletos hoy.</strong> ${prevision.avisos.join(" ")} En el test del estudio, prescindir de la cesta OPEP
-        cambió las previsiones de media entre 0,13 y 0,27 USD, muy por debajo del margen de error.</p></div>`;
+      <p><strong>Datos incompletos hoy.</strong> ${prevision.avisos.join(" ")} ${efecto}, muy por debajo del margen de error.</p></div>`;
   }
   pintarCabecera(prevision);
   pintarPrevisiones(prevision);
@@ -66,9 +70,29 @@ function pintarFicha(p) {
     <dt class="mutado">Datos usados</dt><dd style="margin:0">los conocidos a las 09:00 del ${fmtFecha(p.origen)}</dd>
     <dt class="mutado">Modelo</dt><dd style="margin:0">${p.modelo.arquitectura} · media de ${p.modelo.semillas.length} semillas</dd>
     <dt class="mutado">Versión</dt><dd style="margin:0" class="num">${p.modelo.version}</dd>
-    <dt class="mutado">Entrenado con datos hasta</dt><dd style="margin:0">${fmtFecha(p.modelo.entrenamiento)}</dd>
+    ${filasEntrenamiento(p.modelo)}
     <dt class="mutado">Calculada</dt><dd style="margin:0">${generado.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" })}</dd>
     <dt class="mutado">Archivos</dt><dd style="margin:0"><a href="${URL_MODELO}">modelo</a> · <a href="${URL_DATOS_HF}">historial de previsiones</a></dd>`;
+}
+
+// Con la parada temprana y el retraso de las etiquetas, «datos hasta la fecha de corte» sería engañoso:
+// se muestran, por horizonte, los orígenes de aprendizaje y los de parada temprana.
+function filasEntrenamiento(m) {
+  const tramos = m.tramos || {};
+  const horizontes = Object.keys(tramos).map(Number).sort((a, b) => a - b);
+  if (!horizontes.length) {
+    return `<dt class="mutado">Fecha de corte</dt><dd style="margin:0">${fmtFecha(m.entrenamiento)}</dd>`;
+  }
+  const lineas = horizontes.map((h) => {
+    const t = tramos[h];
+    return `<div><b>${NOMBRES_HORIZONTE[h]}:</b> aprendizaje hasta ${fmtFechaCorta(t.aprendizaje.fin)} ·
+      parada temprana hasta ${fmtFechaCorta(t.interno.fin)}</div>`;
+  }).join("");
+  return `<dt class="mutado">Fecha de corte</dt><dd style="margin:0">${fmtFecha(m.entrenamiento)}: solo precios ya publicados ese día</dd>
+    <dt class="mutado">Entrenamiento</dt><dd style="margin:0">${lineas}
+      <div class="mutado" style="margin-top:4px">Fechas de origen de las ventanas: cada una se compara con el precio 5, 63 o 252
+        días hábiles después, publicado una semana más tarde. El último 15 % se reserva para decidir cuándo dejar de entrenar
+        (parada temprana).</div></dd>`;
 }
 
 function pintarPrevisiones(p) {
@@ -199,7 +223,18 @@ function pintarFiabilidad(estudio, p) {
     <p class="nota">Mejora del error absoluto medio de la RNN seleccionada en ${filas.find((f) => f.horizonte === 5).n} orígenes a una semana,
       ${filas.find((f) => f.horizonte === 63).n} a tres meses y ${filas.find((f) => f.horizonte === 252).n} a un año. Negativo significa que la red
       se equivocó más que la referencia. La cobertura es el porcentaje de precios reales que cayeron dentro del intervalo.
-      <a href="resultados.html">Ver todos los resultados</a>.</p>`;
+      <a href="resultados.html">Ver todos los resultados</a>.</p>${notaReentreno(p.modelo)}`;
+}
+
+// Versión reentrenada: no tiene test propio; el tramo de parada temprana es solo una comprobación de cordura.
+function notaReentreno(m) {
+  if (!m.cordura) return "";
+  const filas = Object.entries(m.cordura.interno).map(([h, t]) => `${NOMBRES_HORIZONTE[h]}: ${fmt(t.mae_red_media_semillas)}
+    frente a ${fmt(t.mae_ingenuo_con_futuros)} USD`).join("; ");
+  return `<p class="nota"><strong>Esta versión (${m.version}) se reentrenó con el mismo método y no tiene test propio:</strong>
+    las cifras de la tabla son las del estudio y miden la fiabilidad del método, no de estos pesos. Su error medio en el tramo
+    de parada temprana (${filas}, frente al ingenuo con futuros) es solo una comprobación de cordura, no una evaluación nueva:
+    ese tramo sirvió para elegir cuándo dejar de entrenar y se solapa con el test del estudio.</p>`;
 }
 
 function pintarFuentes(p) {

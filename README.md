@@ -113,3 +113,48 @@ se implementarán cuando se acuerde el tratamiento por variable.
 Los snapshots locales y datos derivados se ignoran en Git; el CSV inicial sigue
 versionado. Antes de entrenar se acordará cómo preservar y compartir el snapshot
 seleccionado para reproducir exactamente los experimentos.
+
+## Reentrenamiento del modelo de la aplicación
+
+La aplicación (previsión diaria) usa modelos publicados en Hugging Face (`AvaroSantamaria/brent-rnn`).
+Reentrenar repite **el mismo método** del ajuste final del estudio (`reports/experimentos/final/config.json`:
+RNN de 32 unidades, objetivo en cambio, entradas en variaciones, base con futuros, semillas 42/43/44 y
+parada temprana con el último 15 %), con datos hasta hoy. El estudio y su test no cambian.
+
+Se hace **a mano, en local con GPU**: la descarga de la cesta OPEP falla desde la nube y es obligatoria
+para reentrenar. Frecuencia recomendada: **cada 3–6 meses, o tras un acontecimiento importante** en el
+mercado. Un flujo de GitHub Actions (`.github/workflows/recordatorio-reentreno.yml`) abre una issue de
+recordatorio el 1 de enero, abril, julio y octubre; no reentrena.
+
+1. Si ha cambiado el código de preparación o entrenamiento, comprobar que se reproduce el estudio (paquete
+   fijo y corte 02/01/2023: datos, pesos y predicciones de test idénticos a los de `reports/experimentos/final/`):
+
+   ```powershell
+   poetry run python -m src.oil_price_prediction.reentrenar --reproducir-estudio
+   ```
+
+2. Reentrenar. Descarga los datos en `data/raw/<instante>_reentreno/`, prepara
+   `data/processed/reentreno-AAAA-MM-DD/` y escribe pesos, registros e informe en
+   `dist/reentrenos/reentreno-AAAA-MM-DD/` (todo ignorado por Git):
+
+   ```powershell
+   poetry run python -m src.oil_price_prediction.reentrenar
+   ```
+
+3. Revisar `informe_cordura.json`: error en el tramo de parada temprana frente al ingenuo con futuros y
+   previsión de hoy del modelo nuevo y del estudio, con y sin la cesta OPEP (la tarea diaria en GitHub se
+   ejecuta sin ella).
+4. Publicar. Etiqueta en Hugging Face la versión anterior (si aún no lo está) y la nueva; la previsión
+   diaria usa la nueva desde su siguiente ejecución:
+
+   ```powershell
+   poetry run python -m scripts.publicar_hf --repo AvaroSantamaria/brent-rnn --carpeta dist/reentrenos/reentreno-AAAA-MM-DD/modelo
+   ```
+
+**Límites.** Un modelo reentrenado **no tiene test propio**: la web y la ficha muestran las métricas del
+test del estudio como fiabilidad del método, no de esos pesos. Su error en el tramo de parada temprana
+**no es una evaluación nueva, sino una comprobación de cordura**: ese tramo decide la época de cada semilla
+y se solapa con el periodo de test del estudio. Con el 15 % reservado y el retraso de las etiquetas, el
+aprendizaje termina años antes de la fecha de corte (con datos hasta noviembre de 2026, los orígenes
+de aprendizaje acaban entre cuatro y seis años antes, según el horizonte); por eso la web indica, por horizonte, hasta dónde llegan el aprendizaje y la
+parada temprana. Reentrenar no garantiza mejorar las previsiones.
