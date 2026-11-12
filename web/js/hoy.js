@@ -16,14 +16,26 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   estado.hidden = true;
   document.getElementById("contenido").hidden = false;
+  const avisos = [];
+  const calculo = momentoCalculo(prevision);
+  if (calculo.temprano) {
+    const cuando = calculo.fecha === prevision.origen ? `a las ${calculo.hora}`
+      : `el ${fmtFecha(calculo.fecha)} a las ${calculo.hora}, para el ${fmtFecha(prevision.origen)}`;
+    avisos.push(`<p><strong>Calculada antes de la hora habitual.</strong> Esta previsión se hizo ${cuando} (hora de Madrid),
+      antes de las 09:00. Usa los datos conocidos a esa hora:
+      puede faltar alguno que se publique antes de las 09:00, como un cierre de mercado o una cifra de FRED. La próxima
+      ejecución automática la sustituirá.</p>`);
+  }
   if (prevision.avisos?.length) {
     const opep = prevision.modelo.cordura?.opep;
     const efecto = opep
       ? `Con este modelo, prescindir de la cesta OPEP cambió la previsión del ${fmtFecha(opep.origen)} en
         ${Object.entries(opep.diferencias).map(([h, d]) => `${fmtSigno(d, 2)} USD a ${NOMBRES_HORIZONTE[h]}`).join(", ")}`
       : "En el test del estudio, prescindir de la cesta OPEP cambió las previsiones de media entre 0,13 y 0,27 USD";
-    document.getElementById("avisos").innerHTML = `<div class="aviso" style="margin-bottom:20px">
-      <p><strong>Datos incompletos hoy.</strong> ${prevision.avisos.join(" ")} ${efecto}, muy por debajo del margen de error.</p></div>`;
+    avisos.push(`<p><strong>Datos incompletos hoy.</strong> ${prevision.avisos.join(" ")} ${efecto}, muy por debajo del margen de error.</p>`);
+  }
+  if (avisos.length) {
+    document.getElementById("avisos").innerHTML = `<div class="aviso" style="margin-bottom:20px">${avisos.join("")}</div>`;
   }
   pintarCabecera(prevision);
   pintarPrevisiones(prevision);
@@ -32,11 +44,26 @@ document.addEventListener("DOMContentLoaded", async () => {
   pintarFuentes(prevision);
 });
 
+// Fecha y hora de Madrid en que se calculó la previsión. Es «temprana» si se calculó antes de las 09:00 del día de
+// origen (p. ej. una ejecución manual de madrugada): entonces los datos son los conocidos a esa hora, no a las 09:00.
+function momentoCalculo(p) {
+  const partes = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(p.generado_utc)).map((x) => [x.type, x.value]));
+  const fecha = `${partes.year}-${partes.month}-${partes.day}`;
+  const temprano = fecha < p.origen || (fecha === p.origen && Number(partes.hour) < 9);
+  const hora = `${partes.hour}:${partes.minute}`;
+  // Momento al que corresponden los datos: las 09:00 del origen o, si se calculó antes, la fecha y hora del cálculo.
+  return { fecha, hora, temprano, horaDatos: temprano ? hora : "09:00", fechaDatos: temprano ? fecha : p.origen };
+}
+
 function pintarCabecera(p) {
+  const { horaDatos, fechaDatos } = momentoCalculo(p);
   document.getElementById("fecha-prevision").textContent =
-    `Previsión hecha con los datos disponibles a las 09:00 del ${fmtFecha(p.origen)} (hora de Madrid)`;
+    `Previsión hecha con los datos disponibles a las ${horaDatos} del ${fmtFecha(fechaDatos)} (hora de Madrid)`;
   const b = p.base;
-  document.getElementById("base-titulo").textContent = `Precio de referencia · ${fmtFecha(p.origen)}, 09:00`;
+  document.getElementById("base-titulo").textContent = `Precio de referencia · ${fmtFecha(fechaDatos)}, ${horaDatos}`;
   document.getElementById("base-valor").innerHTML = `${fmt(b.valor)}<small>USD/barril</small>`;
   if (b.tipo !== "futuros") {
     document.getElementById("base-explicacion").innerHTML =
@@ -49,7 +76,7 @@ function pintarCabecera(p) {
   const variacion = 100 * (b.futuro / futuroBase - 1);
   document.getElementById("base-explicacion").innerHTML = `
     Es el <strong>precio del Brent puesto al día</strong>, no una previsión. El Brent spot oficial se publica con una semana
-    de retraso, así que a las 09:00 el último conocido era el del ${fmtFecha(b.spot_fecha)}. Para saber dónde está el
+    de retraso, así que a las ${momentoCalculo(p).horaDatos} el último conocido era el del ${fmtFecha(b.spot_fecha)}. Para saber dónde está el
     precio hoy, se le aplica lo que ha variado desde entonces el <strong>futuro de Brent</strong>, que cotiza a diario y es
     el precio que sigue el mercado. Las tres previsiones de abajo parten de este valor.`;
   document.getElementById("base-calculo").innerHTML = `
@@ -65,13 +92,13 @@ function pintarCabecera(p) {
 }
 
 function pintarFicha(p) {
-  const generado = new Date(p.generado_utc);
+  const calculo = momentoCalculo(p);
   document.getElementById("ficha").innerHTML = `
-    <dt class="mutado">Datos usados</dt><dd style="margin:0">los conocidos a las 09:00 del ${fmtFecha(p.origen)}</dd>
+    <dt class="mutado">Datos usados</dt><dd style="margin:0">los conocidos a las ${calculo.horaDatos} del ${fmtFecha(calculo.fechaDatos)}</dd>
     <dt class="mutado">Modelo</dt><dd style="margin:0">${p.modelo.arquitectura} · media de ${p.modelo.semillas.length} semillas</dd>
     <dt class="mutado">Versión</dt><dd style="margin:0" class="num">${p.modelo.version}</dd>
     ${filasEntrenamiento(p.modelo)}
-    <dt class="mutado">Calculada</dt><dd style="margin:0">${generado.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" })}</dd>
+    <dt class="mutado">Calculada</dt><dd style="margin:0">${fmtFecha(calculo.fecha)} a las ${calculo.hora} (hora de Madrid)</dd>
     <dt class="mutado">Archivos</dt><dd style="margin:0"><a href="${URL_MODELO}">modelo</a> · <a href="${URL_DATOS_HF}">historial de previsiones</a></dd>`;
 }
 

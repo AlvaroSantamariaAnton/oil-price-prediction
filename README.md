@@ -400,7 +400,9 @@ python -m http.server 8770 --directory web
 ```
 
 y abrir <http://localhost:8770>. Abrir los HTML directamente desde el disco no funciona (el navegador bloquea la
-carga de datos). La página «Hoy» muestra siempre la previsión publicada en Hugging Face.
+carga de datos). La página «Hoy» muestra siempre la previsión publicada en Hugging Face. Si esa previsión se
+calculó antes de las 09:00 de Madrid (por ejemplo, en una ejecución manual de madrugada), la página lo avisa e
+indica la hora real de los datos.
 
 ### Del estudio al modelo publicado
 
@@ -490,6 +492,4 @@ abril, julio y octubre con los pasos y la versión publicada; no reentrena y no 
 
 ## Posibles mejoras
 
-- Web: indicar cuándo una previsión se ha calculado antes de las 09:00 de Madrid (por ejemplo, en ejecuciones
-  manuales de madrugada).
 - Web: seguimiento de las previsiones pasadas frente a los precios reales, a partir del historial publicado.
