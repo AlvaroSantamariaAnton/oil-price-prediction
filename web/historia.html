@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brent a la vista · Histórico del Brent</title>
+  <meta name="description" content="El precio del Brent desde 2000 con los acontecimientos que más lo movieron.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230b0b0b'/%3E%3Cpath d='M16 6c3.6 4.6 6.5 8.6 6.5 12.1A6.5 6.5 0 0 1 16 24.6a6.5 6.5 0 0 1-6.5-6.5C9.5 14.6 12.4 10.6 16 6z' fill='%23b5651d'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/estilos.css">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
+  <script src="js/comun.js" defer></script>
+  <script src="js/historia.js" defer></script>
+</head>
+<body>
+<main>
+  <section class="portada">
+    <div class="contenedor">
+      <p class="etiqueta">Histórico</p>
+      <h1>Un cuarto de siglo de Brent</h1>
+      <p class="entradilla">El precio del barril ha pasado de menos de 10 dólares a más de 140 en este periodo. Casi todos los
+        grandes movimientos tienen detrás un acontecimiento que nadie podía anticipar con datos de precios, y eso explica
+        buena parte de lo que puede y no puede hacer un modelo de previsión.</p>
+    </div>
+  </section>
+
+  <section class="contenedor">
+    <div class="tarjeta">
+      <div class="cabecera-seccion">
+        <div>
+          <h2 style="margin-bottom:4px">Brent spot diario, 2000–hoy</h2>
+          <p class="mutado pequeno">Arrastra el selector inferior (o usa Ctrl + rueda) para acercarte a cualquier periodo. Las franjas marcan los
+            acontecimientos descritos abajo y las bandas de color, los periodos de validación y de test del estudio.</p>
+        </div>
+        <div id="selector-escala"></div>
+      </div>
+      <div class="leyenda" id="leyenda-historia"></div>
+      <div class="grafica alta" id="grafica-historia" role="img" aria-label="Precio diario del Brent desde 2000 con acontecimientos marcados"></div>
+      <p class="nota" id="nota-historia"></p>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div>
+          <p class="etiqueta">Acontecimientos</p>
+          <h2>Lo que movió el precio</h2>
+        </div>
+        <p class="mutado pequeno">Las cifras de cada tarjeta se calculan a partir de la propia serie que ves arriba.</p>
+      </div>
+      <div class="rejilla rejilla-3" id="eventos"></div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor dos-columnas">
+      <div class="columna-texto">
+        <p class="etiqueta">Volatilidad</p>
+        <h2>Cada año, un rango distinto</h2>
+        <p>Cada barra va del precio mínimo al máximo de ese año, y el punto marca la media; en color, los años con un rango de
+          más de 50 dólares. Los años de crisis son enormes: <strong>110 dólares</strong> de diferencia en 2008, alrededor de
+          <strong>60</strong> en 2014, 2020 y 2022, y <strong>77</strong> en 2026. Un margen de error fijo, calibrado en años más
+          tranquilos, se queda corto en ellos: lo vimos en el <a href="resultados.html">test</a>.</p>
+        <p>Esta es también la razón de que el estudio separe con cuidado los años de validación (2018–2021) y de test (2023 en
+          adelante): cada periodo tiene su propia «personalidad», y un modelo que acierta en uno puede fallar en otro.</p>
+      </div>
+      <div class="tarjeta">
+        <div class="grafica" id="grafica-anual" role="img" aria-label="Rango anual del Brent: mínimo, media y máximo por año"></div>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

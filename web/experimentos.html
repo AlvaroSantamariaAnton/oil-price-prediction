@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brent a la vista · Experimentos</title>
+  <meta name="description" content="Cómo se compararon RNN, LSTM y GRU: dieciséis experimentos, cada uno motivado por un problema observado.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230b0b0b'/%3E%3Cpath d='M16 6c3.6 4.6 6.5 8.6 6.5 12.1A6.5 6.5 0 0 1 16 24.6a6.5 6.5 0 0 1-6.5-6.5C9.5 14.6 12.4 10.6 16 6z' fill='%23b5651d'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/estilos.css">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
+  <script src="js/comun.js" defer></script>
+  <script src="js/experimentos.js" defer></script>
+</head>
+<body>
+<main>
+  <section class="portada">
+    <div class="contenedor">
+      <p class="etiqueta">Experimentos</p>
+      <h1>RNN, LSTM y GRU: dieciséis experimentos, una pregunta</h1>
+      <p class="entradilla">¿Cuánto mejora cada tipo de red recurrente la previsión del Brent frente a repetir el último precio
+        conocido? Para responder sin hacernos trampas, cada regla se fijó antes de entrenar y cada cambio partió de un problema
+        que habíamos visto en los resultados, no de probar por probar.</p>
+    </div>
+  </section>
+
+  <section class="contenedor">
+    <div class="rejilla rejilla-4">
+      <article class="tarjeta"><p class="etiqueta">Arquitecturas</p><p class="cifra-media">3</p>
+        <p class="mutado pequeno" style="margin:0">RNN simple, LSTM y GRU, con una capa recurrente de 32 o 64 unidades y una salida
+          lineal. Mismos datos y mismas reglas para las tres.</p></article>
+      <article class="tarjeta"><p class="etiqueta">Ajustes de validación</p><p class="cifra-media" id="kpi-ajustes">1.080</p>
+        <p class="mutado pequeno" style="margin:0">3 redes × 3 horizontes × 2 tamaños × 4 años de validación, repetidos en cada
+          experimento y semilla.</p></article>
+      <article class="tarjeta"><p class="etiqueta">Puntuación</p><p class="cifra-media">4 × 3</p>
+        <p class="mutado pequeno" style="margin:0">Media de la mejora del error frente al ingenuo en 4 años × 3 horizontes, los
+          12 valores con el mismo peso. Gana la mayor; con un punto o menos de diferencia, la más rápida de entrenar.</p></article>
+      <article class="tarjeta"><p class="etiqueta">Semillas</p><p class="cifra-media">42 · 43 · 44</p>
+        <p class="mutado pequeno" style="margin:0">Cada configuración se entrena tres veces y se promedian las predicciones, para
+          no confundir suerte con mejora.</p></article>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div>
+          <p class="etiqueta">Con qué se compara</p>
+          <h2>Las dos referencias</h2>
+        </div>
+        <p class="mutado pequeno">Una red solo es útil si mejora a una regla sencilla. Medimos todas las redes contra dos reglas
+          que no necesitan entrenamiento; la segunda apareció a mitad del estudio y resultó ser la más exigente.</p>
+      </div>
+      <div class="rejilla rejilla-2" id="referencias"></div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div>
+          <p class="etiqueta">Visión de conjunto</p>
+          <h2>Cómo fue mejorando cada familia de experimentos</h2>
+        </div>
+        <div id="selector-referencia"></div>
+      </div>
+      <div class="tarjeta">
+        <p class="mutado pequeno" id="explicacion-referencia" style="margin-bottom:6px"></p>
+        <div class="leyenda" id="leyenda-familias"></div>
+        <div class="grafica" id="grafica-familias" role="img" aria-label="Puntuación de validación por familia de experimentos y arquitectura"></div>
+        <p class="nota">Puntuación de validación (2018–2021) de cada arquitectura con sus tamaños elegidos. Desde E2, cada barra es la
+          media de tres semillas. Por encima de cero, la red mejora a la referencia.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div><p class="etiqueta">El recorrido</p><h2>Cada paso, con su motivo</h2></div>
+        <p class="mutado pequeno">Las cifras son la puntuación de validación de la mejor arquitectura de cada familia frente al
+          ingenuo y, entre paréntesis, frente al ingenuo con futuros.</p>
+      </div>
+      <div class="recorrido" id="recorrido"></div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div>
+          <p class="etiqueta">Antes y después</p>
+          <h2>De anclarse a un nivel a seguir al mercado</h2>
+        </div>
+        <div id="selector-horizonte"></div>
+      </div>
+      <div class="tarjeta">
+        <p class="mutado pequeno" id="texto-antes-despues"></p>
+        <div class="leyenda" id="leyenda-antes"></div>
+        <div class="grafica alta" id="grafica-antes" role="img" aria-label="Predicciones de validación del primer experimento frente al seleccionado"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor dos-columnas">
+      <div class="columna-texto">
+        <p class="etiqueta">La elección</p>
+        <h2>Por qué una RNN simple</h2>
+        <p>En la familia final, las tres redes quedan a <strong>menos de un punto</strong> entre sí, una diferencia menor que la que
+          produce cambiar de semilla. La regla, fijada de antemano, elige entonces la que menos tarda en entrenar: la
+          <strong>RNN</strong>, con 32 unidades en los tres horizontes.</p>
+        <p>Que gane la arquitectura más sencilla tiene sentido: cuando casi toda la información útil está en el precio de los
+          futuros, queda muy poco que aprender, y las puertas de una LSTM o una GRU no aportan ventaja.</p>
+        <p>Una advertencia: elegir entre tantas opciones con los mismos cuatro años hace que la puntuación del ganador sea algo
+          optimista. Por eso el test se reservó hasta el final y se evaluó una sola vez.</p>
+      </div>
+      <div class="tarjeta">
+        <p class="etiqueta">Familia seleccionada (E14–E16)</p>
+        <div id="tabla-final" class="cargando pequeno">Cargando…</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion"><div><p class="etiqueta">Con perspectiva</p><h2>Lo que esperábamos y lo que no</h2></div></div>
+      <div class="rejilla rejilla-2">
+        <article class="tarjeta">
+          <h3>Esperado</h3>
+          <ul class="lista-clave">
+            <li><strong>Batir al «paseo aleatorio» es muy difícil.</strong> En precios de mercado, repetir el último precio es una
+              referencia exigente, sobre todo usando solo datos de precios.</li>
+            <li><strong>Los horizontes largos casi no tienen señal.</strong> A tres meses y a un año, ninguna red mejoró de forma
+              fiable a las referencias.</li>
+            <li><strong>Las crisis no se ven venir.</strong> Las previsiones a un año hechas en 2021 fallaron por la subida de 2022
+              tras la invasión de Ucrania, en todas las familias.</li>
+          </ul>
+        </article>
+        <article class="tarjeta">
+          <h3>No esperado</h3>
+          <ul class="lista-clave">
+            <li><strong>El primer modelo se anclaba a un precio.</strong> Al predecir el precio directamente, las redes devolvían
+              casi el mismo valor todo el año.</li>
+            <li><strong>La suerte de la semilla.</strong> Con la semilla 42, la LSTM parecía la mejor; con los mismos tamaños, su
+              puntuación fue +1,7 %, −4,7 % y −15,5 % con las semillas 42, 43 y 44.</li>
+            <li><strong>Una buena idea que no funcionó.</strong> Predecir el cambio en porcentaje empeoró a las tres redes.</li>
+            <li><strong>El gran descubrimiento:</strong> un acierto direccional del 73 % a una semana resultó ser, en su mayor parte,
+              la información de los futuros. Una regla de una línea lo igualaba.</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

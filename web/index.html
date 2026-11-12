@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brent a la vista · Previsión de hoy</title>
+  <meta name="description" content="Previsión diaria del precio del Brent a una semana, tres meses y un año con una red recurrente, explicada con honestidad.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230b0b0b'/%3E%3Cpath d='M16 6c3.6 4.6 6.5 8.6 6.5 12.1A6.5 6.5 0 0 1 16 24.6a6.5 6.5 0 0 1-6.5-6.5C9.5 14.6 12.4 10.6 16 6z' fill='%23b5651d'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/estilos.css">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
+  <script src="js/comun.js" defer></script>
+  <script src="js/hoy.js" defer></script>
+</head>
+<body>
+<main>
+  <section class="portada">
+    <div class="contenedor">
+      <p class="etiqueta" id="fecha-prevision">Previsión del día</p>
+      <h1>¿Hacia dónde va el Brent?</h1>
+      <p class="entradilla">Cada mañana laborable, una red recurrente estima el precio del barril de Brent dentro de una semana,
+        tres meses y un año a partir de lo que se sabía a las 09:00 de Madrid. Aquí tienes su previsión, cuánto margen de error
+        conviene darle y por qué, en el estudio, no mejoró a una regla mucho más sencilla.</p>
+    </div>
+  </section>
+
+  <section class="contenedor">
+    <div id="estado" class="cargando">Cargando la previsión más reciente…</div>
+    <div id="contenido" hidden>
+      <div class="rejilla rejilla-base" id="bloque-base">
+        <div class="tarjeta">
+          <p class="etiqueta" id="base-titulo">Precio de referencia</p>
+          <div class="cifra num" id="base-valor">—</div>
+          <p style="margin:10px 0 0"><span class="chip acento">Ingenuo con futuros</span></p>
+          <p class="mutado" style="margin-top:12px" id="base-explicacion"></p>
+          <div class="calculo num" id="base-calculo"></div>
+          <p class="pequeno mutado" style="margin:12px 0 0" id="base-ingenuo"></p>
+        </div>
+        <div class="tarjeta">
+          <p class="etiqueta">Sobre esta previsión</p>
+          <dl class="pequeno" style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0" id="ficha"></dl>
+        </div>
+      </div>
+
+      <div class="cabecera-seccion" style="margin-top:36px">
+        <h2>Las tres previsiones</h2>
+        <p class="mutado pequeno">Precio previsto y el intervalo en el que, en la validación, cayó el 80 % de los precios reales.
+          La variación se mide frente al precio de referencia, que es la marca gris de cada barra.</p>
+      </div>
+      <div class="rejilla rejilla-3" id="previsiones"></div>
+
+      <div class="tarjeta" style="margin-top:28px">
+        <div class="cabecera-seccion">
+          <div>
+            <h2 style="margin-bottom:4px">Del pasado reciente a las previsiones</h2>
+            <p class="mutado pequeno">Brent spot publicado por la EIA, futuro de Brent y las tres previsiones de hoy con su intervalo.</p>
+          </div>
+          <div id="selector-rango"></div>
+        </div>
+        <div class="leyenda" id="leyenda-hoy"></div>
+        <div class="grafica alta" id="grafica-hoy" role="img" aria-label="Histórico reciente del Brent y previsiones con intervalos"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor dos-columnas">
+      <div class="columna-texto">
+        <p class="etiqueta">Cómo leerla</p>
+        <h2>Una previsión prudente, no una bola de cristal</h2>
+        <p>El modelo parte del <strong>precio de referencia</strong>: el último Brent spot publicado, actualizado con lo que ha
+          hecho el futuro de Brent desde entonces. Sobre ese punto estima cuánto subirá o bajará. Por eso sus previsiones suelen
+          quedar cerca de la referencia: es lo que mejor funciona cuando el futuro del petróleo es, en gran parte, imprevisible.</p>
+        <p>En el <a href="resultados.html">test de 2023 a 2026</a>, la red acertó la dirección (sube o baja) a una semana en torno
+          al 70 % de las veces y mejoró claramente a quien repite el último precio spot conocido. Pero esa ventaja procede de
+          actualizar el precio con los futuros: la regla simple que solo hace eso obtuvo el mismo resultado o algo mejor.</p>
+        <p>A tres meses y a un año, ninguna red mejoró de forma fiable a las referencias, y el intervalo es muy ancho a
+          propósito. Tómalas como orientación del rango posible, no como un objetivo.</p>
+      </div>
+      <div class="tarjeta" id="fiabilidad">
+        <p class="etiqueta">Fiabilidad medida en el test (2023–2026)</p>
+        <div id="tabla-fiabilidad" class="cargando pequeno">Cargando…</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div>
+          <p class="etiqueta">Transparencia</p>
+          <h2>Con qué datos se ha hecho</h2>
+        </div>
+        <p class="mutado pequeno">Cada fuente se usa solo cuando ya se habría conocido a las 09:00 de Madrid, con los retrasos
+          explicados en <a href="datos.html">Datos y método</a>. Debajo, la fecha del último dato utilizado.</p>
+      </div>
+      <div class="rejilla rejilla-3" id="fuentes"></div>
+      <div class="aviso" style="margin-top:28px">
+        <p><strong>No es una recomendación de inversión.</strong> Es el resultado de un trabajo académico que compara redes
+          recurrentes con referencias sencillas. Los precios del petróleo dependen de decisiones políticas, conflictos y otros
+          acontecimientos que ningún modelo basado en datos pasados puede anticipar.</p>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

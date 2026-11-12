@@ -31,6 +31,27 @@ DESTINO = ROOT / "dist/huggingface/modelo"
 VERSION = "estudio-2023-01-02"
 
 
+def evaluacion_test(arquitectura):
+    """Resumen del test del estudio (reports/evaluacion_test.csv) para la arquitectura y las dos referencias."""
+    import pandas as pd
+    tabla = pd.read_csv(ROOT / "reports/evaluacion_test.csv")
+    salida = {"descripcion": ("Test del estudio: orígenes desde el 02/01/2023 con los modelos entrenados hasta esa "
+                              "frontera; media de tres semillas. Mejoras con el MAE de todos los orígenes; IC95 por "
+                              "bloques de longitud igual al horizonte; p de Diebold-Mariano."), "horizontes": {}}
+    for h, g in tabla.groupby("horizonte"):
+        filas = {}
+        for _, f in g.iterrows():
+            if f.predictor not in (arquitectura, "Ingenuo", "Ingenuo con futuros"):
+                continue
+            filas[f.predictor] = {k: (None if pd.isna(f[k]) else (json.loads(f[k]) if isinstance(f[k], str) and f[k].startswith(("[", "{")) else f[k]))
+                                  for k in ("n", "mae", "rmse", "mejora_frente_ingenuo", "mejora_frente_futuros",
+                                            "ic95_frente_ingenuo", "p_dm_frente_ingenuo", "ic95_frente_futuros",
+                                            "p_dm_frente_futuros", "acierto_direccional", "cobertura_intervalo")
+                                  if k in f.index}
+        salida["horizontes"][str(int(h))] = filas
+    return json.loads(json.dumps(salida, default=float))
+
+
 def main():
     config = json.loads((FINAL / "config.json").read_text(encoding="utf-8"))
     arquitectura = config["seleccionada"]
@@ -88,6 +109,7 @@ def main():
         "entrenamiento": {"frontera": config["ajuste_final"]["frontera"], "snapshot": SNAPSHOT, "tramos": tramos,
                           "commit": final_registro["commit"]},
         "commit_exportacion": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+        "evaluacion_test": evaluacion_test(arquitectura),
         "modelos": modelos,
     }
     (DESTINO / "config.json").write_text(json.dumps(salida, indent=2, ensure_ascii=False), encoding="utf-8")

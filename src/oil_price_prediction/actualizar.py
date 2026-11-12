@@ -124,8 +124,16 @@ def predecir(fuentes, fechas, origen, carpeta_modelo, config):
             variacion_frente_base=cambio, variacion_pct_frente_base=100 * cambio / base,
             ingenuo=float(spot), ingenuo_con_futuros=None if pd.isna(con_futuros) else float(con_futuros),
             cambio_por_semilla=salidas))
+    # Futuro de Brent en la fecha del spot (último cierre observado en o antes de ella), para explicar la base.
+    futuro_base = futuro_base_fecha = None
+    if not pd.isna(con_futuros):
+        cierres = (tabla.loc[tabla.brent_fut_Close_disponible == 1, ["brent_fut_Close_origen", "brent_fut_Close"]]
+                   .drop_duplicates("brent_fut_Close_origen").set_index("brent_fut_Close_origen").brent_fut_Close.sort_index())
+        anteriores = cierres[cierres.index <= tabla.at[origen, "brent_origen"]]
+        futuro_base, futuro_base_fecha = float(anteriores.iloc[-1]), pd.Timestamp(anteriores.index[-1]).date().isoformat()
     return tabla, dict(
         base=dict(valor=base, tipo="futuros" if not pd.isna(con_futuros) else "spot", spot=float(spot),
+                  futuro_base=futuro_base, futuro_base_fecha=futuro_base_fecha,
                   spot_fecha=pd.Timestamp(tabla.at[origen, "brent_origen"]).date().isoformat(),
                   futuro=None if pd.isna(tabla.at[origen, "brent_fut_Close"]) else float(tabla.at[origen, "brent_fut_Close"]),
                   futuro_fecha=None if pd.isna(tabla.at[origen, "brent_fut_Close_origen"])

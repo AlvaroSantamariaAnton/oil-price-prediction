@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brent a la vista · Resultados del test</title>
+  <meta name="description" content="Evaluación única de 2023 a 2026: las tres redes frente al ingenuo y frente al ingenuo con futuros.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230b0b0b'/%3E%3Cpath d='M16 6c3.6 4.6 6.5 8.6 6.5 12.1A6.5 6.5 0 0 1 16 24.6a6.5 6.5 0 0 1-6.5-6.5C9.5 14.6 12.4 10.6 16 6z' fill='%23b5651d'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/estilos.css">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
+  <script src="js/comun.js" defer></script>
+  <script src="js/resultados.js" defer></script>
+</head>
+<body>
+<main>
+  <section class="portada">
+    <div class="contenedor">
+      <p class="etiqueta">Resultados del test</p>
+      <h1>El examen final: 2023–2026</h1>
+      <p class="entradilla">Con todo decidido en validación, se entrenaron los modelos finales con los datos conocidos el 2 de
+        enero de 2023 y se evaluaron <strong>una sola vez</strong> sobre casi cuatro años que nunca habían visto. Cada red es la
+        media de tres semillas, y se compara con dos referencias: el ingenuo del enunciado y el ingenuo con futuros.</p>
+    </div>
+  </section>
+
+  <section class="contenedor" style="margin-bottom:28px">
+    <div class="rejilla rejilla-2" id="referencias"></div>
+  </section>
+
+  <section class="contenedor">
+    <div class="rejilla rejilla-3" id="kpis"></div>
+    <div class="aviso" style="margin-top:20px" id="veredicto"></div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div><p class="etiqueta">Las previsiones</p><h2>Precio real frente a previsto</h2></div>
+        <div class="controles" style="margin:0">
+          <div id="selector-h-serie"></div>
+        </div>
+      </div>
+      <div class="tarjeta">
+        <div class="controles casillas" id="casillas-serie"></div>
+        <div class="grafica alta" id="grafica-serie" role="img" aria-label="Precio real del Brent y previsiones de test"></div>
+        <p class="nota" id="nota-serie"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div><p class="etiqueta">Quién gana y cuándo</p><h2>Error acumulado frente al ingenuo</h2></div>
+        <div id="selector-h-acumulado"></div>
+      </div>
+      <div class="dos-columnas">
+        <div class="tarjeta">
+          <div class="leyenda" id="leyenda-acumulado"></div>
+          <div class="grafica" id="grafica-acumulado" role="img" aria-label="Error acumulado de cada predictor menos el del ingenuo"></div>
+        </div>
+        <div class="columna-texto">
+          <p>Cada curva suma, día a día, cuánto error comete un predictor <strong>de más o de menos</strong> que el ingenuo. Si
+            baja, va ganando; si sube, va perdiendo.</p>
+          <p><strong>A una semana</strong>, las tres redes y el ingenuo con futuros bajan casi juntos durante todo el test:
+            ganan con claridad al ingenuo, pero la línea del ingenuo con futuros va casi siempre un poco por debajo de las redes.</p>
+          <p><strong>A tres meses</strong>, las redes acumulan más error que el ingenuo desde 2024, mientras que el ingenuo con
+            futuros acumula algo menos.</p>
+          <p><strong>A un año</strong>, las curvas dan bandazos de cientos de dólares: tres años de predicciones a un año vista
+            equivalen a unas pocas observaciones independientes, y una buena o mala racha lo decide todo.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div><p class="etiqueta">La tabla completa</p><h2>Métricas del test por horizonte</h2></div>
+        <div id="selector-h-tabla"></div>
+      </div>
+      <div class="tabla-envoltura" id="tabla-test"></div>
+      <p class="nota">Mejora = reducción del error absoluto medio (MAE) respecto a la referencia, con todos los orígenes de test
+        juntos. IC95: intervalo de confianza al 95 % por remuestreo de bloques tan largos como el horizonte. p: prueba de
+        Diebold-Mariano; por debajo de 0,05, la diferencia difícilmente es casualidad. Parámetros por modelo; tiempo de
+        entrenamiento de las tres semillas en una GPU RTX 3060 Ti.</p>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div><p class="etiqueta">Año a año</p><h2>Error medio y cobertura del intervalo</h2></div>
+        <div id="selector-h-anual"></div>
+      </div>
+      <div class="rejilla rejilla-2">
+        <div class="tarjeta">
+          <h3>Error absoluto medio por año de origen</h3>
+          <div class="grafica" id="grafica-mae" role="img" aria-label="Error absoluto medio por año y predictor"></div>
+        </div>
+        <div class="tarjeta">
+          <h3>Cobertura del intervalo del 80 % (RNN)</h3>
+          <div class="grafica" id="grafica-cobertura" role="img" aria-label="Porcentaje de precios dentro del intervalo por año"></div>
+        </div>
+      </div>
+      <p class="nota">El intervalo usa márgenes fijos en dólares calibrados en validación (2018–2021). En 2026 el precio se movió
+        mucho más de lo habitual y la cobertura cayó con fuerza: un margen fijo no se adapta a la volatilidad.</p>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor dos-columnas">
+      <div class="columna-texto">
+        <p class="etiqueta">Validación frente a test</p>
+        <h2>¿Se cumplió lo que anticipaba la validación?</h2>
+        <p>Sí, en lo esencial. En validación, la RNN seleccionada quedaba ligeramente por debajo del ingenuo con futuros, y en el
+          test también; algo más lejos, como era de esperar tras elegir entre muchas opciones con los mismos años de
+          validación.</p>
+        <p>La sorpresa fue la <strong>LSTM a un año</strong>: mejora a ambas referencias en el test con un resultado
+          estadísticamente significativo, cuando en validación quedaba por debajo. No cambiamos la selección a la vista del test:
+          con tan pocas observaciones independientes a ese plazo, lo más probable es que sea una racha favorable, y elegir ahora
+          convertiría el test en otra validación.</p>
+      </div>
+      <div class="tarjeta">
+        <p class="etiqueta">RNN seleccionada · mejora frente al ingenuo con futuros</p>
+        <div id="tabla-val-test" class="cargando pequeno">Cargando…</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion"><div><p class="etiqueta">Conclusiones</p><h2>Lo que nos llevamos</h2></div></div>
+      <div class="rejilla rejilla-2">
+        <article class="tarjeta">
+          <h3>Resultados</h3>
+          <ul class="lista-clave">
+            <li><strong>A una semana, las redes mejoran al ingenuo del enunciado alrededor de un 19 %</strong>, con evidencia
+              fuerte, y aciertan la dirección del precio en torno al 70 % de los días.</li>
+            <li><strong>Esa mejora procede de los futuros.</strong> Actualizar el último spot con el futuro de Brent logra un 20 %
+              sin ninguna red; las redes quedan entre un 1,9 y un 2 % por debajo de esa regla.</li>
+            <li><strong>A tres meses y a un año no hay mejora fiable</strong> frente a ninguna referencia.</li>
+            <li><strong>RNN, LSTM y GRU rinden prácticamente igual</strong>; la arquitectura importa mucho menos que cómo se
+              preparan los datos y qué se le pide predecir a la red.</li>
+          </ul>
+        </article>
+        <article class="tarjeta">
+          <h3>Limitaciones</h3>
+          <ul class="lista-clave">
+            <li><strong>Reconstrucción aproximada.</strong> Los retrasos de publicación se fijaron con una auditoría del archivo
+              de FRED y supuestos razonables; los datos descargados incluyen revisiones posteriores.</li>
+            <li><strong>Futuros continuos.</strong> La serie de Yahoo cambia de contrato cada mes y eso introduce pequeños saltos,
+              que afectan por igual a las redes y al ingenuo con futuros.</li>
+            <li><strong>Intervalos de anchura fija.</strong> Cubren menos del 80 % en épocas muy volátiles.</li>
+            <li><strong>Sin variables fundamentales.</strong> No se usan inventarios, producción ni demanda; con solo precios
+              de mercado es muy difícil anticipar giros como los de 2020, 2022 o 2026.</li>
+            <li><strong>Selección optimista.</strong> Dieciséis experimentos sobre los mismos años de validación; el test, al ser
+              único, es la medida honesta.</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>
