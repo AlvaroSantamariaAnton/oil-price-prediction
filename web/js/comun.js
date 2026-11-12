@@ -25,7 +25,7 @@ function montarCabecera() {
     `<a href="${href}"${actual === href || (actual === "" && href === "index.html") ? ' aria-current="page"' : ""}>${texto}</a>`).join("");
   document.body.insertAdjacentHTML("afterbegin", `
     <header class="cabecera"><div class="contenedor">
-      <a class="marca" href="index.html">${ICONO}<span>Brent a la vista<small>Previsión y estudio con redes recurrentes</small></span></a>
+      <a class="marca" href="index.html">${ICONO}<span>Brentcast<small>Previsión del Brent con redes recurrentes</small></span></a>
       <button class="boton-menu" aria-label="Abrir menú" aria-expanded="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <nav class="nav" aria-label="Secciones">${enlaces}
