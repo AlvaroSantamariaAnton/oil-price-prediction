@@ -379,8 +379,10 @@ ejemplo, `predicciones_test.csv`) o restaurar las versionadas con `git restore r
 
 La previsión es **base + media del cambio previsto por las tres semillas**, donde la base es el ingenuo con
 futuros, con el intervalo del 80 % calibrado en validación. Desde la nube, la web de la OPEP rechaza las
-descargas: la cesta se trata como dato ausente y la web lo avisa (en el test, eso cambió la previsión de media
-entre 0,13 y 0,27 USD). Si falla la tabla del BCE, se usa el mismo tipo publicado en FRED.
+descargas: en la previsión diaria la cesta se trata siempre como dato ausente (en el test, eso cambió la
+previsión de media entre 0,13 y 0,27 USD). Como es una situación permanente, la web lo explica en una nota fija
+de la sección de fuentes y reserva el recuadro amarillo para fallos inesperados, como tener que tomar de FRED
+el tipo del BCE porque falle su tabla oficial.
 
 ### Ejecutarla en local
 
@@ -493,3 +495,5 @@ abril, julio y octubre con los pasos y la versión publicada; no reentrena y no 
 ## Posibles mejoras
 
 - Web: seguimiento de las previsiones pasadas frente a los precios reales, a partir del historial publicado.
+- Previsión diaria: encontrar una fuente de la cesta OPEP accesible desde la nube (con valores iguales a los del
+  XML oficial) para usarla también en GitHub Actions.

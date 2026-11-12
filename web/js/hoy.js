@@ -26,13 +26,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       puede faltar alguno que se publique antes de las 09:00, como un cierre de mercado o una cifra de FRED. La próxima
       ejecución automática la sustituirá.</p>`);
   }
-  if (prevision.avisos?.length) {
-    const opep = prevision.modelo.cordura?.opep;
-    const efecto = opep
-      ? `Con este modelo, prescindir de la cesta OPEP cambió la previsión del ${fmtFecha(opep.origen)} en
-        ${Object.entries(opep.diferencias).map(([h, d]) => `${fmtSigno(d, 2)} USD a ${NOMBRES_HORIZONTE[h]}`).join(", ")}`
-      : "En el test del estudio, prescindir de la cesta OPEP cambió las previsiones de media entre 0,13 y 0,27 USD";
-    avisos.push(`<p><strong>Datos incompletos hoy.</strong> ${prevision.avisos.join(" ")} ${efecto}, muy por debajo del margen de error.</p>`);
+  // La cesta OPEP falla siempre desde GitHub Actions: es una situación permanente y se explica en la sección de
+  // fuentes. El recuadro amarillo queda para fallos inesperados (p. ej. el respaldo del BCE en FRED).
+  const inesperados = (prevision.avisos || []).filter((a) => !esAvisoOpep(a));
+  if (inesperados.length) {
+    avisos.push(`<p><strong>Datos incompletos hoy.</strong> ${inesperados.join(" ")}</p>`);
   }
   if (avisos.length) {
     document.getElementById("avisos").innerHTML = `<div class="aviso" style="margin-bottom:20px">${avisos.join("")}</div>`;
@@ -43,6 +41,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   pintarFiabilidad(estudio, prevision);
   pintarFuentes(prevision);
 });
+
+const esAvisoOpep = (aviso) => aviso.includes("cesta OPEP");
 
 // Fecha y hora de Madrid en que se calculó la previsión. Es «temprana» si se calculó antes de las 09:00 del día de
 // origen (p. ej. una ejecución manual de madrugada): entonces los datos son los conocidos a esa hora, no a las 09:00.
@@ -270,12 +270,32 @@ function pintarFuentes(p) {
     const raiz = clave.replace(/_(Open|High|Low|Close|Volume)$/, "");
     (grupos[raiz] ||= []).push(v);
   }
+  const sinOpep = (p.avisos || []).some(esAvisoOpep);
   document.getElementById("fuentes").innerHTML = Object.entries(grupos).map(([raiz, valores]) => {
     const ok = valores.every((v) => v.disponible);
     const v = valores.find((x) => x.observacion) || valores[0];
+    const detalle = raiz === "cesta_opep" && sinOpep ? "no se usa (ver nota)"
+      : `${v.observacion ? fmtFechaCorta(v.observacion) : "sin dato"}${v.edad_dias_habiles != null ? ` · ${v.edad_dias_habiles} d` : ""}`;
     return `<div class="tarjeta" style="padding:14px 18px"><div class="fuente" style="border:0;padding:0">
       <span><span class="punto ${ok ? "" : "no"}"></span>${NOMBRES_FUENTE[raiz] || raiz}</span>
-      <span class="num mutado">${v.observacion ? fmtFechaCorta(v.observacion) : "sin dato"}${v.edad_dias_habiles != null ? ` · ${v.edad_dias_habiles} d` : ""}</span>
+      <span class="num mutado">${detalle}</span>
     </div></div>`;
   }).join("");
+  if (sinOpep) pintarNotaOpep(p);
+}
+
+// Situación permanente, no un fallo del día: la web de la OPEP rechaza las descargas desde la nube.
+function pintarNotaOpep(p) {
+  const nota = document.getElementById("nota-opep");
+  if (!nota) return;  // HTML anterior en la caché del navegador
+  const opep = p.modelo.cordura?.opep;
+  const efecto = opep
+    ? `Con este modelo, prescindir de la cesta cambió la previsión del ${fmtFecha(opep.origen)} en
+      ${Object.entries(opep.diferencias).map(([h, d]) => `${fmtSigno(d, 2)} USD a ${NOMBRES_HORIZONTE[h]}`).join(", ")}`
+    : "En el test del estudio, prescindir de la cesta cambió las previsiones de media entre 0,13 y 0,27 USD";
+  nota.innerHTML = `<strong>La cesta OPEP no se usa en la previsión diaria.</strong> La previsión se calcula cada mañana
+    en servidores de GitHub y la web de la OPEP rechaza las descargas que llegan desde la nube, así que la cesta se trata como
+    dato ausente, igual que cuando un dato caduca. El modelo sí la usó al entrenar, por lo que la previsión puede diferir un
+    poco de la que daría con ella. ${efecto}, muy por debajo del margen de error.`;
+  nota.hidden = false;
 }
