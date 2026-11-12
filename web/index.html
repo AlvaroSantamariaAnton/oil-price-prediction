@@ -46,11 +46,16 @@
       </div>
 
       <div class="cabecera-seccion" style="margin-top:36px">
-        <h2>Las tres previsiones</h2>
-        <p class="mutado pequeno">Precio previsto y el intervalo en el que, en la validación, cayó el 80 % de los precios reales.
-          La variación se mide frente al precio de referencia, que es la marca gris de cada barra.</p>
+        <div>
+          <h2 style="margin-bottom:4px">Las tres previsiones</h2>
+          <p class="mutado pequeno">Precio previsto y el intervalo en el que, en la validación, cayó el 80 % de los precios reales.
+            La variación se mide frente al precio de referencia, que es la marca gris de cada barra. Elige un horizonte para ver
+            qué significa su previsión y cuánto fiarse de ella.</p>
+        </div>
+        <div id="selector-horizonte" aria-label="Horizonte"></div>
       </div>
       <div class="rejilla rejilla-3" id="previsiones"></div>
+      <div class="tarjeta explicacion" id="explicacion-horizonte" style="margin-top:20px" aria-live="polite"></div>
 
       <div class="tarjeta" style="margin-top:28px">
         <div class="cabecera-seccion">

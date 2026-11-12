@@ -37,10 +37,91 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   pintarCabecera(prevision);
   pintarPrevisiones(prevision);
-  pintarGrafica(prevision);
+  const redibujarGrafica = pintarGrafica(prevision);
+  montarSelectorHorizonte(prevision, estudio, redibujarGrafica);
   pintarFiabilidad(estudio, prevision);
   pintarFuentes(prevision);
 });
+
+// Horizonte elegido por el usuario: destaca su tarjeta y su previsión en la gráfica y explica su significado.
+let horizonteActivo = 5;
+
+function montarSelectorHorizonte(p, estudio, redibujarGrafica) {
+  const selector = document.getElementById("selector-horizonte");
+  const elegir = (h) => {
+    horizonteActivo = h;
+    selector.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.valor) === h)));
+    document.querySelectorAll("#previsiones .prevision").forEach((t) => {
+      const activa = Number(t.dataset.horizonte) === h;
+      t.classList.toggle("activa", activa);
+      t.setAttribute("aria-pressed", String(activa));
+    });
+    document.getElementById("explicacion-horizonte").innerHTML = explicarHorizonte(p, estudio, h);
+    redibujarGrafica();
+  };
+  segmentado(selector, p.previsiones.map((f) => [String(f.horizonte), NOMBRES_HORIZONTE[f.horizonte]]),
+    (v) => elegir(Number(v)), String(horizonteActivo));
+  document.querySelectorAll("#previsiones .prevision").forEach((t) => {
+    t.addEventListener("click", () => elegir(Number(t.dataset.horizonte)));
+    t.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); elegir(Number(t.dataset.horizonte)); }
+    });
+  });
+  elegir(horizonteActivo);
+}
+
+const PLAZOS = {
+  5: "dentro de una semana (5 días hábiles)",
+  63: "dentro de unos tres meses (63 días hábiles)",
+  252: "dentro de un año (252 días hábiles)",
+};
+const RIESGOS = {
+  5: `Cualquier sorpresa de esta semana: una decisión de la OPEP+, una tensión geopolítica en una zona productora, un
+    dato de inventarios o un movimiento brusco del dólar. El modelo solo ve datos pasados y no anticipa noticias.`,
+  63: `En tres meses pueden cambiar la producción de la OPEP+, la demanda mundial (una desaceleración o una crisis) o los
+    conflictos que afectan al suministro, como ocurrió en 2020 y en 2022.`,
+  252: `A un año pesan factores que ningún dato de hoy recoge: recesiones o recuperaciones mundiales, guerras, cambios de
+    estrategia de la OPEP+ o la transición energética. Movimientos como el desplome de 2020 o la subida de 2022 no se
+    habrían podido prever con un año de antelación.`,
+};
+
+// Texto para un usuario no técnico: qué significa la previsión, qué fiabilidad tuvo ese horizonte en el test del
+// estudio (según la comparativa) y qué puede invalidarla. Las cifras salen de la previsión y de estudio.json.
+function explicarHorizonte(p, estudio, h) {
+  const f = p.previsiones.find((x) => x.horizonte === h);
+  const red = estudio.test.tabla.find((x) => x.horizonte === h && x.predictor === p.modelo.arquitectura);
+  const [bajo, alto] = f.intervalo;
+  const pct = f.variacion_pct_frente_base;
+  const sentido = Math.abs(pct) < 0.05 ? "prácticamente igual al"
+    : `un ${fmt(Math.abs(pct), 1)} % ${pct > 0 ? "por encima del" : "por debajo del"}`;
+  const frente = (mejora, quien) => `un ${fmt(Math.abs(mejora), 1)} % ${mejora >= 0 ? "menos" : "más"} que ${quien}`;
+  const [peorAnio, peorCobertura] = Object.entries(red.cobertura_por_anio).sort((a, b) => a[1] - b[1])[0];
+  let veredicto;
+  if (red.mejora_frente_ingenuo > 0 && red.mejora_frente_futuros >= 0) {
+    veredicto = "A este plazo la red mejoró a las dos referencias.";
+  } else if (red.mejora_frente_ingenuo > 0) {
+    veredicto = `A este plazo aporta valor frente a repetir el último precio publicado, pero no frente a seguir el futuro de
+      Brent: úsala como una referencia razonable de corto plazo, no como una ventaja sobre el mercado.`;
+  } else {
+    veredicto = `A este plazo la previsión no aportó valor fiable frente a las referencias: tómala como una orientación del
+      rango posible, no como un objetivo.`;
+  }
+  return `
+    <p class="etiqueta" style="margin:0">${NOMBRES_HORIZONTE[h]} · ${fmtFecha(f.fecha_objetivo)}</p>
+    <p><span class="apartado">Qué significa.</span> El modelo estima que el ${fmtFecha(f.fecha_objetivo)}, ${PLAZOS[h]}, el
+      Brent spot estará en torno a <strong>${fmtUSD(f.precio)}</strong> por barril, ${sentido} precio de referencia de hoy
+      (${fmtUSD(p.base.valor)}). No es un precio exacto: con los errores observados en la validación, lo razonable es
+      esperar un valor entre <strong>${fmt(bajo)} y ${fmt(alto)} USD</strong>; en 8 de cada 10 casos el precio real quedó a
+      menos de ${fmtUSD(f.margen)} de lo previsto.</p>
+    <p><span class="apartado">Cuánto fiarse.</span> En el test del estudio (${red.n} previsiones de 2023 a 2026), la red se equivocó
+      ${frente(red.mejora_frente_ingenuo, "repetir el último precio spot conocido")} y
+      ${frente(red.mejora_frente_futuros, "la regla simple de actualizarlo con el futuro de Brent")}. Acertó si el precio
+      subía o bajaba el ${fmt(100 * red.acierto_direccional, 0)} % de las veces, y el precio real quedó dentro del intervalo
+      el ${fmt(100 * red.cobertura_intervalo, 0)} % (lo previsto era el 80 %; en ${peorAnio}, solo el
+      ${fmt(100 * peorCobertura, 0)} %). ${veredicto}</p>
+    <p><span class="apartado">Qué puede invalidarla.</span> ${RIESGOS[h]} Además, el intervalo tiene una anchura fija y se
+      queda corto cuando el mercado está muy agitado.</p>`;
+}
 
 const esAvisoOpep = (aviso) => aviso.includes("cesta OPEP");
 
@@ -130,7 +211,8 @@ function pintarPrevisiones(p) {
     const margen = (maximo - minimo) * 0.08;
     const pos = (v) => ((v - (minimo - margen)) / (maximo - minimo + 2 * margen)) * 100;
     const pct = f.variacion_pct_frente_base;
-    return `<article class="tarjeta prevision">
+    return `<article class="tarjeta prevision" data-horizonte="${f.horizonte}" role="button" tabindex="0"
+      aria-label="Ver la explicación de la previsión a ${NOMBRES_HORIZONTE[f.horizonte]}">
       <h3><span>${NOMBRES_HORIZONTE[f.horizonte]}</span><span class="chip">${fmtFechaCorta(f.fecha_objetivo)}</span></h3>
       <div class="cifra-media num">${fmt(f.precio)} <span class="pequeno mutado" style="font-family:var(--texto)">USD</span></div>
       <div class="variacion ${claseSigno(pct)}">${fmtPct(pct)} frente a la referencia</div>
@@ -162,6 +244,7 @@ function pintarGrafica(p) {
     <span><i style="background:${c0.RNN}"></i>Previsión (RNN)</span>
     <span><i class="banda" style="background:${c0.RNN}"></i>Intervalo del 80 %</span>`;
   const origen = p.origen;
+  const activa = (f) => f[4] === horizonteActivo;  // f = [fecha, precio, bajo, alto, horizonte]
   const desde = (m) => { const d = new Date(origen); d.setMonth(d.getMonth() - m); return d.toISOString().slice(0, 10); };
   const construir = () => {
     const c = colores();
@@ -201,7 +284,10 @@ function pintarGrafica(p) {
         },
         {
           name: "conexiones", type: "lines", coordinateSystem: "cartesian2d", silent: true, tooltip: { show: false },
-          data: finales.map((f) => ({ coords: [[origen, p.base.valor], [f[0], f[1]]] })),
+          data: finales.map((f) => ({
+            coords: [[origen, p.base.valor], [f[0], f[1]]],
+            lineStyle: { opacity: activa(f) ? .75 : .2, width: activa(f) ? 2 : 1.5 },
+          })),
           lineStyle: { color: c.RNN, width: 1.5, opacity: .5, type: "solid" },
         },
         {
@@ -211,10 +297,11 @@ function pintarGrafica(p) {
             const bajo = api.coord([api.value(0), api.value(2)]);
             const alto = api.coord([api.value(0), api.value(3)]);
             const ancho = 18;
+            const tenue = api.value(4) !== horizonteActivo;
             return {
               type: "group", children: [
-                { type: "rect", shape: { x: x[0] - ancho / 2, y: alto[1], width: ancho, height: bajo[1] - alto[1], r: 4 }, style: { fill: c.RNN, opacity: .18 } },
-                { type: "line", shape: { x1: x[0], y1: alto[1], x2: x[0], y2: bajo[1] }, style: { stroke: c.RNN, lineWidth: 1.5, opacity: .7 } },
+                { type: "rect", shape: { x: x[0] - ancho / 2, y: alto[1], width: ancho, height: bajo[1] - alto[1], r: 4 }, style: { fill: c.RNN, opacity: tenue ? .07 : .22 } },
+                { type: "line", shape: { x1: x[0], y1: alto[1], x2: x[0], y2: bajo[1] }, style: { stroke: c.RNN, lineWidth: 1.5, opacity: tenue ? .25 : .8 } },
               ],
             };
           },
@@ -222,7 +309,10 @@ function pintarGrafica(p) {
         },
         {
           name: "Previsión", type: "scatter", symbolSize: 12, z: 6,
-          data: finales.map((f) => ({ value: f, label: { position: { 5: "bottom", 63: "top", 252: "top" }[f[4]], distance: 10 } })),
+          data: finales.map((f) => ({
+            value: f, itemStyle: { opacity: activa(f) ? 1 : .35 }, symbolSize: activa(f) ? 14 : 10,
+            label: { position: { 5: "bottom", 63: "top", 252: "top" }[f[4]], distance: 10, opacity: activa(f) ? 1 : .5 },
+          })),
           itemStyle: { color: c.RNN, borderColor: c.superficie, borderWidth: 2 },
           label: { show: true, color: c.tinta, fontSize: 11, fontWeight: 600, formatter: (x) => `${NOMBRES_HORIZONTE[x.value[4]]}: ${fmt(x.value[1], 1)}` },
         },
@@ -230,6 +320,7 @@ function pintarGrafica(p) {
     };
   };
   const entrada = crearGrafica(document.getElementById("grafica-hoy"), construir);
+  return () => entrada.grafica.setOption(construir(), true);
 }
 
 function pintarFiabilidad(estudio, p) {

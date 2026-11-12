@@ -14,16 +14,17 @@ publica cada mañana una previsión con el modelo seleccionado.
 ## Índice
 
 1. [Resultado en una frase](#resultado-en-una-frase)
-2. [Estructura del repositorio](#estructura-del-repositorio)
-3. [Datos](#datos)
-4. [Método y decisiones principales](#método-y-decisiones-principales)
-5. [Experimentos: qué se publica y qué no](#experimentos-qué-se-publica-y-qué-no)
-6. [Resultados del test](#resultados-del-test)
-7. [Reproducir el proyecto en otro ordenador](#reproducir-el-proyecto-en-otro-ordenador)
-8. [La aplicación](#la-aplicación)
-9. [Reentrenamiento del modelo de la aplicación](#reentrenamiento-del-modelo-de-la-aplicación)
-10. [Limitaciones](#limitaciones)
-11. [Posibles mejoras](#posibles-mejoras)
+2. [Cumplimiento del enunciado](#cumplimiento-del-enunciado)
+3. [Estructura del repositorio](#estructura-del-repositorio)
+4. [Datos](#datos)
+5. [Método y decisiones principales](#método-y-decisiones-principales)
+6. [Experimentos: qué se publica y qué no](#experimentos-qué-se-publica-y-qué-no)
+7. [Resultados del test](#resultados-del-test)
+8. [Reproducir el proyecto en otro ordenador](#reproducir-el-proyecto-en-otro-ordenador)
+9. [La aplicación](#la-aplicación)
+10. [Reentrenamiento del modelo de la aplicación](#reentrenamiento-del-modelo-de-la-aplicación)
+11. [Limitaciones](#limitaciones)
+12. [Posibles mejoras](#posibles-mejoras)
 
 ## Resultado en una frase
 
@@ -31,6 +32,30 @@ Con datos reconstruidos tal como se conocían a las 09:00 de Madrid, **las redes
 el último precio spot conocido a una semana, pero esa mejora procede de actualizar ese precio con los futuros
 de Brent**: una regla simple que solo hace eso (el *ingenuo con futuros*) obtiene el mismo resultado o algo
 mejor. A tres meses y a un año ninguna red mejora de forma fiable a las referencias.
+
+## Cumplimiento del enunciado
+
+Dónde está cada requisito del [enunciado](docs/assignment/ENUNCIADO.pdf):
+
+| Requisito | Dónde |
+|---|---|
+| Brent, WTI y variables externas diarias desde 2000 (FRED/EIA, Yahoo Finance, OPEP, BCE) | [Datos](#datos), [`download_all_data.py`](scripts/download_all_data.py), [`prepare_daily_inputs.py`](scripts/prepare_daily_inputs.py) |
+| Faltantes, festivos y outliers (WTI negativo, 2008, 2022, 2026) | [Faltantes y valores extremos](#faltantes-y-valores-extremos), [auditoría](notebooks/01_auditoria_datos.ipynb) |
+| Escalado ajustado solo con entrenamiento | [`prepare_scalers.py`](scripts/prepare_scalers.py), [Método](#método-y-decisiones-principales) |
+| Ventanas de 60 días | [`prepare_windows.py`](scripts/prepare_windows.py) |
+| RNN, LSTM y GRU con walk-forward y ajuste de hiperparámetros | [`train_validation.py`](src/oil_price_prediction/train_validation.py), [protocolo](docs/protocolo_experimento.md), [Experimentos](#experimentos-qué-se-publica-y-qué-no) |
+| Comparación con el modelo ingenuo | [Resultados del test](#resultados-del-test) (y una segunda referencia, el ingenuo con futuros) |
+| Predicción a 5, 63 y 252 días hábiles con rango de incertidumbre | Intervalo del 80 % ([`compute_interval_margins.py`](scripts/compute_interval_margins.py)) |
+| MSE, MAE, RMSE y acierto direccional por modelo y horizonte | [`reports/evaluacion_test.csv`](reports/evaluacion_test.csv) |
+| Mismos datos, ventana, particiones y presupuesto para las tres redes | [protocolo](docs/protocolo_experimento.md) (72 ajustes por experimento y cuadrícula común) |
+| Tabla con MAE, RMSE, mejora frente al ingenuo, parámetros y tiempo | [`reports/evaluacion_test.csv`](reports/evaluacion_test.csv), web «Resultados» |
+| Conclusión justificada: modelo elegido y horizontes con y sin valor | [Método](#método-y-decisiones-principales), [Resultados del test](#resultados-del-test), [protocolo](docs/protocolo_experimento.md) |
+| Aplicación en Python: elegir horizonte, histórico, previsión y tendencias | [La aplicación](#la-aplicación), <https://brentcast.vercel.app> |
+| Precio previsto, variación y rango de incertidumbre por horizonte | Web «Hoy» |
+| Explicación en lenguaje sencillo: significado, fiabilidad y riesgos | Web «Hoy» (texto generado por horizonte) |
+| Ciclo económico: 2008, 2014–2016, 2020, 2022 y movimientos recientes | Web «Histórico» |
+| Descarga de datos recientes y reentrenamiento periódico | [Previsión diaria](#cómo-funciona), [Reentrenamiento](#reentrenamiento-del-modelo-de-la-aplicación) |
+| Código en GitHub con README de ejecución | Este repositorio, [Reproducir el proyecto](#reproducir-el-proyecto-en-otro-ordenador) |
 
 ## Estructura del repositorio
 
@@ -154,6 +179,19 @@ información futura. El CSV se conserva como referencia y la auditoría lo compa
 
 La [auditoría](notebooks/01_auditoria_datos.ipynb) documenta inventario, huecos, extremos y fechas de
 publicación (ALFRED), que justifican estas reglas.
+
+### Faltantes y valores extremos
+
+- **Festivos y días sin cotización:** cada mercado tiene su calendario. Todo se alinea con el del Brent y, en
+  cada fecha, se toma el último valor ya publicado de cada variable, con un **indicador de disponibilidad** y
+  una **edad máxima**: si el dato es demasiado antiguo, queda como ausente en lugar de rellenarse sin límite.
+- **WTI negativo (−37,63 USD el 20/04/2020):** es un precio real, no un error. Como las entradas de precio se
+  usan en variación logarítmica, que no está definida con precios no positivos, las variaciones en las que
+  interviene ese precio quedan como **dato ausente** (indicador a 0). El objetivo es el Brent, que nunca fue negativo.
+- **Máximo de 2008 y picos de 2022 y 2026:** son movimientos reales del mercado, revisados en la auditoría, y
+  **se conservan**. Eliminarlos haría que el modelo pareciera mejor de lo que es justo cuando más importa. Dos
+  decisiones reducen su peso sin borrarlos: las entradas en variaciones diarias (un salto de nivel no
+  desplaza toda la escala) y la pérdida MAE, menos sensible a errores grandes que el MSE.
 
 ## Método y decisiones principales
 
@@ -380,7 +418,21 @@ ejemplo, `predicciones_test.csv`) o restaurar las versionadas con `git restore r
    ([`decidir_prevision.py`](scripts/decidir_prevision.py)) solo calcula si aún no hay una previsión de hoy
    hecha a partir de las 09:00. Una previsión manual de madrugada no cuenta: la siguiente ejecución la sustituye.
 2. **La web** (carpeta `web/`, desplegada en Vercel con Root Directory `web`) es estática: lee esa previsión
-   de Hugging Face y los datos del estudio de `web/datos/estudio.json`.
+   de Hugging Face y los datos del estudio de `web/datos/estudio.json`. Tiene cinco páginas:
+   - **Hoy:** el precio de referencia, las tres previsiones con su intervalo y una gráfica del último periodo. Se
+     puede **elegir el horizonte** (1 semana, 3 meses o 1 año) y la página genera un texto que explica qué
+     significa esa previsión, cuánto fiarse de ella según el test y qué podría invalidarla.
+   - **Histórico:** el Brent desde 2000, con los acontecimientos de 2008, 2014–2016, 2020, 2022 y los
+     movimientos recientes marcados y explicados.
+   - **Datos y método**, **Experimentos** y **Resultados:** el estudio explicado para un público no técnico.
+
+**Por qué es una aplicación en Python.** El enunciado pide una aplicación en Python y cita Streamlit como
+ejemplo. Aquí todo el cálculo es Python: descarga de datos, construcción de entradas, predicción y publicación
+([`actualizar.py`](src/oil_price_prediction/actualizar.py)), y también el reentrenamiento
+([`reentrenar.py`](src/oil_price_prediction/reentrenar.py)). Se puede ejecutar en local con un solo comando (ver
+abajo). La interfaz es una web estática que muestra lo que calcula Python. Se eligió así porque se publica gratis
+y siempre está disponible sin mantener un servidor, y porque la previsión se calcula una vez al día y no en cada
+visita.
 
 La previsión es **base + media del cambio previsto por las tres semillas**, donde la base es el ingenuo con
 futuros, con el intervalo del 80 % calibrado en validación. Desde la nube, la web de la OPEP rechaza las

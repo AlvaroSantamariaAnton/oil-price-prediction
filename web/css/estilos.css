@@ -187,6 +187,14 @@ main { padding-bottom: 64px; }
 .prevision h3 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 14px; }
 .prevision .rango { margin: 14px 0 0; padding-top: 14px; border-top: 1px solid var(--borde); display: grid; gap: 6px; font-size: .9rem; color: var(--tinta-2); }
 .prevision .rango div { display: flex; justify-content: space-between; gap: 12px; }
+.prevision { cursor: pointer; transition: border-color .15s, box-shadow .15s, opacity .15s; }
+.prevision:not(.activa) { opacity: .7; }
+.prevision:hover, .prevision:focus-visible { opacity: 1; }
+.prevision.activa { border-color: var(--rnn); box-shadow: 0 0 0 1px var(--rnn), var(--sombra); }
+.explicacion { display: grid; gap: 14px; }
+.explicacion h3 { margin: 0; }
+.explicacion p { margin: 0; }
+.explicacion .apartado { font-weight: 650; color: var(--tinta); }
 .barra-intervalo { position: relative; height: 8px; background: var(--superficie-2); border-radius: 999px; margin: 14px 0 6px; }
 .barra-intervalo span { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: color-mix(in srgb, var(--rnn) 35%, transparent); }
 .barra-intervalo b { position: absolute; top: -4px; width: 4px; height: 16px; border-radius: 2px; background: var(--rnn); transform: translateX(-50%); }
