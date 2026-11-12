@@ -192,7 +192,9 @@ def publicar(repo, archivo, origen):
     """Sube la previsión vigente (prediccion.json) y una copia en historial/<origen>.json."""
     from huggingface_hub import CommitOperationAdd, HfApi
     api = HfApi()
-    api.create_repo(repo, repo_type="dataset", exist_ok=True)
+    # Un token Fine-grained limitado a este repositorio no puede crear repositorios: solo se crea si falta.
+    if not api.repo_exists(repo, repo_type="dataset"):
+        api.create_repo(repo, repo_type="dataset")
     info = api.create_commit(repo_id=repo, repo_type="dataset", commit_message=f"Previsión del {origen}", operations=[
         CommitOperationAdd(path_in_repo="prediccion.json", path_or_fileobj=str(archivo)),
         CommitOperationAdd(path_in_repo=f"historial/{origen}.json", path_or_fileobj=str(archivo))])
