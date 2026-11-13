@@ -134,9 +134,13 @@ function momentoCalculo(p) {
   }).formatToParts(new Date(p.generado_utc)).map((x) => [x.type, x.value]));
   const fecha = `${partes.year}-${partes.month}-${partes.day}`;
   const temprano = fecha < p.origen || (fecha === p.origen && Number(partes.hour) < 9);
+  // «Tarde»: a partir de las 10:00 del origen o un día posterior (GitHub Actions retrasó la ejecución programada).
+  const tarde = !temprano && (fecha > p.origen || Number(partes.hour) >= 10);
   const hora = `${partes.hour}:${partes.minute}`;
-  // Momento al que corresponden los datos: las 09:00 del origen o, si se calculó antes, la fecha y hora del cálculo.
-  return { fecha, hora, temprano, horaDatos: temprano ? hora : "09:00", fechaDatos: temprano ? fecha : p.origen };
+  // Momento al que corresponden los datos: las 09:00 del origen si se calculó a la hora habitual (09:xx); si no, la
+  // fecha y la hora reales del cálculo.
+  const real = temprano || tarde;
+  return { fecha, hora, temprano, tarde, horaDatos: real ? hora : "09:00", fechaDatos: real ? fecha : p.origen };
 }
 
 function pintarCabecera(p) {
@@ -179,7 +183,11 @@ function pintarFicha(p) {
     <dt class="mutado">Modelo</dt><dd style="margin:0">${p.modelo.arquitectura} · media de ${p.modelo.semillas.length} semillas</dd>
     <dt class="mutado">Versión</dt><dd style="margin:0" class="num">${p.modelo.version}</dd>
     ${filasEntrenamiento(p.modelo)}
-    <dt class="mutado">Calculada</dt><dd style="margin:0">${fmtFecha(calculo.fecha)} a las ${calculo.hora} (hora de Madrid)</dd>
+    <dt class="mutado">Calculada</dt><dd style="margin:0">${fmtFecha(calculo.fecha)} a las ${calculo.hora} (hora de Madrid)${calculo.tarde ? `
+      <div class="mutado" style="margin-top:4px">La tarea diaria está programada a las 09:15 en GitHub Actions, que a veces
+        retrasa las ejecuciones programadas; si no llega a su hora, se reintenta cada hora durante el día. Por eso esta
+        previsión usa los datos conocidos a las ${calculo.hora}. Las reglas de publicación de cada dato no cambian, así que la
+        diferencia con las 09:00 suele ser mínima.</div>` : ""}</dd>
     <dt class="mutado">Archivos</dt><dd style="margin:0"><a href="${URL_MODELO}">modelo</a> · <a href="${URL_DATOS_HF}">historial de previsiones</a></dd>`;
 }
 

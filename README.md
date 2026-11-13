@@ -417,6 +417,8 @@ ejemplo, `predicciones_test.csv`) o restaurar las versionadas con `git restore r
    15:15 en invierno y de 09:15 a 16:15 en verano, hora de Madrid) y cada ejecución
    ([`decidir_prevision.py`](scripts/decidir_prevision.py)) solo calcula si aún no hay una previsión de hoy
    hecha a partir de las 09:00. Una previsión manual de madrugada no cuenta: la siguiente ejecución la sustituye.
+   Es una limitación de GitHub Actions: algunos días la previsión llega horas más tarde. En ese caso usa los datos
+   conocidos a la hora real del cálculo, y la web lo indica en lugar de decir «09:00».
 2. **La web** (carpeta `web/`, desplegada en Vercel con Root Directory `web`) es estática: lee esa previsión
    de Hugging Face y los datos del estudio de `web/datos/estudio.json`. Tiene cinco páginas:
    - **Hoy:** el precio de referencia, las tres previsiones con su intervalo y una gráfica del último periodo. Se
@@ -549,6 +551,9 @@ abril, julio y octubre con los pasos y la versión publicada; no reentrena y no 
 - **La previsión diaria no usa la cesta OPEP.** La web de la OPEP bloquea las descargas desde la nube, así que
   en GitHub Actions la cesta se trata como dato ausente, aunque el modelo sí la usó al entrenar. Con el modelo
   actual, la diferencia medida es de +0,54 / +0,01 / −0,09 USD a +5 / +63 / +252, muy por debajo del margen.
+- **La hora de la previsión depende de GitHub Actions.** La tarea está programada a las 09:15, pero GitHub retrasa
+  o se salta a menudo las ejecuciones programadas; con los reintentos de cada hora la previsión del día llega igual,
+  aunque a veces por la tarde.
 - **El ajuste final no aprende directamente de 2019–2022**, que se usa como tramo de parada temprana; en los
   reentrenamientos ocurre lo mismo con los años más recientes.
 
