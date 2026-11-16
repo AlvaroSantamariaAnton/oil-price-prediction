@@ -4,7 +4,16 @@ const COLOR_PRED = { "Ingenuo": "ingenuo", "Ingenuo con futuros": "futuros", RNN
 const OPCIONES_H = [["5", "1 semana"], ["63", "3 meses"], ["252", "1 año"]];
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const e = await cargarJSON(URL_ESTUDIO);
+  let e;
+  try {
+    e = await cargarJSON(URL_ESTUDIO);
+  } catch (error) {
+    mostrarError(document.getElementById("kpis"), "No se han podido cargar los resultados del estudio.");
+    document.getElementById("veredicto").hidden = true;
+    for (const id of ["grafica-serie", "grafica-acumulado", "grafica-mae", "grafica-cobertura"]) document.getElementById(id).style.height = "auto";
+    document.getElementById("tabla-val-test").outerHTML = `<p class="nota">Datos no disponibles.</p>`;
+    return;
+  }
   const fila = (h, p) => e.test.tabla.find((f) => f.horizonte === Number(h) && f.predictor === p);
   pintarReferencias(document.getElementById("referencias"), {
     futuros: ` En el test, a una semana, mejora al ingenuo un ${fmt(fila(5, "Ingenuo con futuros").mejora_frente_ingenuo, 1)} % sin ninguna red.`,
@@ -22,12 +31,12 @@ function pintarKpis(e, fila) {
   document.getElementById("kpis").innerHTML = e.horizontes.map((h) => {
     const red = fila(h, sel), fut = fila(h, "Ingenuo con futuros");
     return `<article class="tarjeta">
-      <p class="etiqueta">${NOMBRES_HORIZONTE[h]} · ${red.n} previsiones</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div><div class="pequeno mutado">${sel} frente al ingenuo</div><div class="cifra-media num ${claseSigno(red.mejora_frente_ingenuo)}">${fmtPct(red.mejora_frente_ingenuo)}</div></div>
-        <div><div class="pequeno mutado">${sel} frente al ingenuo con futuros</div><div class="cifra-media num ${claseSigno(red.mejora_frente_futuros)}">${fmtPct(red.mejora_frente_futuros)}</div></div>
+      <p class="etiqueta">${NOMBRES_HORIZONTE[h]} · ${red.n.toLocaleString("es-ES")} previsiones</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+        <div><div class="cifra-media num ${claseSigno(red.mejora_frente_ingenuo)}" style="margin-bottom:4px">${fmtPct(red.mejora_frente_ingenuo)}</div><div class="pequeno mutado">${sel} frente al ingenuo</div></div>
+        <div><div class="cifra-media num ${claseSigno(red.mejora_frente_futuros)}" style="margin-bottom:4px">${fmtPct(red.mejora_frente_futuros)}</div><div class="pequeno mutado">${sel} frente al ingenuo con futuros</div></div>
       </div>
-      <p class="pequeno mutado" style="margin:12px 0 0">Ingenuo con futuros frente al ingenuo: <b class="${claseSigno(fut.mejora_frente_ingenuo)}">${fmtPct(fut.mejora_frente_ingenuo)}</b>.
+      <p class="nota">Ingenuo con futuros frente al ingenuo: <strong class="${claseSigno(fut.mejora_frente_ingenuo)}">${fmtPct(fut.mejora_frente_ingenuo)}</strong>.
         Error medio de la red: ${fmtUSD(red.mae)}.</p>
     </article>`;
   }).join("");
@@ -42,6 +51,7 @@ function serieDe(e, h) { return e.test.series[h]; }
 
 function pintarSerie(e) {
   let h = "5";
+  const zoom = { start: 0, end: 100 };
   const activos = new Set(["real", e.seleccionada, "futuros"]);
   const opciones = [["real", "Brent real"], ["RNN", "RNN"], ["LSTM", "LSTM"], ["GRU", "GRU"], ["futuros", "Ingenuo con futuros"], ["ingenuo", "Ingenuo"], ["banda", `Intervalo 80 % (${e.seleccionada})`]];
   activos.add("banda");
@@ -50,17 +60,18 @@ function pintarSerie(e) {
     const c = VAR;
     const color = { real: c.real, RNN: c.RNN, LSTM: c.LSTM, GRU: c.GRU, futuros: c.futuros, ingenuo: c.ingenuo, banda: c[e.seleccionada] };
     casillas.innerHTML = opciones.map(([k, t]) => `<label><input type="checkbox" value="${k}" ${activos.has(k) ? "checked" : ""}>
-      <i style="width:10px;height:10px;border-radius:50%;display:inline-block;background:${color[k]}${k === "banda" ? ";opacity:.4" : ""}"></i>${t}</label>`).join("");
+      <i style="background:${color[k]}"></i>${t}</label>`).join("");
   };
   pintarCasillas();
   casillas.addEventListener("change", (ev) => {
     if (ev.target.checked) activos.add(ev.target.value); else activos.delete(ev.target.value);
     entrada.grafica.setOption(construir(), true);
   });
-  segmentado(document.getElementById("selector-h-serie"), OPCIONES_H, (v) => { h = v; entrada.grafica.setOption(construir(), true); notas(); }, h);
+  // Al cambiar de horizonte cambian las fechas: el zoom vuelve a la vista completa.
+  segmentado(document.getElementById("selector-h-serie"), OPCIONES_H, (v) => { h = v; zoom.start = 0; zoom.end = 100; entrada.grafica.setOption(construir(), true); notas(); }, h);
   const notas = () => {
     document.getElementById("nota-serie").textContent = `Cada punto es la previsión hecha en un origen y se dibuja en su fecha objetivo (${DESCRIPCION_HORIZONTE[h]}). ` +
-      `${serieDe(e, h).origen.length} orígenes entre el ${fmtFecha(serieDe(e, h).origen[0])} y el ${fmtFecha(serieDe(e, h).origen.at(-1))}. Desliza la barra inferior para acercarte.`;
+      `${serieDe(e, h).origen.length.toLocaleString("es-ES")} orígenes entre el ${fmtFecha(serieDe(e, h).origen[0])} y el ${fmtFecha(serieDe(e, h).origen.at(-1))}. Desliza la barra inferior para acercarte.`;
   };
   notas();
   const construir = () => {
@@ -84,25 +95,25 @@ function pintarSerie(e) {
     }
     return {
       ...baseOpciones(),
-      grid: { left: 52, right: 20, top: 24, bottom: 84 },
+      grid: { left: 52, right: 20, top: 38, bottom: 90 },
       tooltip: {
         ...baseOpciones().tooltip,
         formatter: (ps) => {
-          const i = ps[0].dataIndex;
-          return `<div style="color:${c.tinta3};margin-bottom:4px">Objetivo ${fmtFecha(s.objetivo[i])} · hecha el ${fmtFecha(s.origen[i])}</div>` +
-            ps.filter((x) => !["base", "Intervalo"].includes(x.seriesName)).map((x) => lineaTooltip(x.color, x.seriesName, fmtUSD(x.value[1]))).join("");
+          const visibles = ps.filter((x) => !["base", "Intervalo"].includes(x.seriesName));
+          if (!visibles.length) return "";
+          const i = visibles[0].dataIndex;
+          return cabeceraTooltip(`Objetivo ${fmtFecha(s.objetivo[i])} · hecha el ${fmtFecha(s.origen[i])}`, c.tinta3) +
+            visibles.map((x) => lineaTooltip(x.color, x.seriesName, fmtUSD(x.value[1]))).join("");
         },
       },
       xAxis: ejeTiempo(),
       yAxis: ejeValor({ name: "USD/barril" }),
-      dataZoom: [
-        { type: "inside", zoomOnMouseWheel: "ctrl", moveOnMouseWheel: false },
-        { type: "slider", height: 26, bottom: 18, borderColor: c.rejilla, fillerColor: c.acentoSuave, handleStyle: { color: c.acento, borderColor: c.acento }, textStyle: { color: c.tinta3 }, dataBackground: { lineStyle: { color: c.tinta3 }, areaStyle: { color: c.rejilla } } },
-      ],
+      dataZoom: barraZoom(c, zoom),
       series,
     };
   };
   const entrada = crearGrafica(document.getElementById("grafica-serie"), construir);
+  recordarZoom(entrada, zoom);
 }
 
 function pintarAcumulado(e) {
@@ -120,11 +131,11 @@ function pintarAcumulado(e) {
     };
     return {
       ...baseOpciones(),
-      grid: { left: 60, right: 20, top: 24, bottom: 40 },
+      grid: { left: 60, right: 20, top: 38, bottom: 40 },
       tooltip: {
         ...baseOpciones().tooltip,
-        formatter: (ps) => `<div style="color:${c.tinta3};margin-bottom:4px">${fmtFecha(String(ps[0].value[0]).slice(0, 10))}</div>` +
-          ps.map((x) => lineaTooltip(x.color, x.seriesName, `${fmtSigno(x.value[1], 0)} USD`)).join(""),
+        formatter: (ps) => ps.length ? cabeceraTooltip(`Hasta el ${fmtFecha(String(ps[0].value[0]))}`, c.tinta3) +
+          ps.map((x) => lineaTooltip(x.color, x.seriesName, `${fmtSigno(x.value[1], 0)} USD`)).join("") : "",
       },
       xAxis: ejeTiempo(),
       yAxis: ejeValor({ name: "USD acumulados", scale: false }),
@@ -183,8 +194,8 @@ function pintarAnual(e, fila) {
     const campos = [["RNN", "RNN"], ["LSTM", "LSTM"], ["GRU", "GRU"], ["futuros", "Ingenuo con futuros"], ["ingenuo", "Ingenuo"]];
     return {
       ...baseOpciones(),
-      grid: { left: 44, right: 12, top: 36, bottom: 32 },
-      legend: { top: 0, left: 0, itemWidth: 10, itemHeight: 10, textStyle: { color: c.tinta2, fontSize: 11 } },
+      grid: { left: 44, right: 12, top: 62, bottom: 32 },
+      legend: { top: 0, left: 0, itemWidth: 10, itemHeight: 10, itemGap: 14, icon: "roundRect", textStyle: { color: c.tinta2, fontSize: 11.5 } },
       tooltip: { ...baseOpciones().tooltip, axisPointer: { type: "shadow", shadowStyle: { color: c.rejilla, opacity: .35 } },
         formatter: (ps) => `<b>${ps[0].axisValue}</b>` + ps.map((x) => lineaTooltip(x.color, x.seriesName, fmtUSD(x.value))).join("") },
       xAxis: { type: "category", data: lista, axisTick: { show: false }, axisLine: { lineStyle: { color: c.rejilla } }, axisLabel: { color: c.tinta2 } },
@@ -198,7 +209,7 @@ function pintarAnual(e, fila) {
     const lista = Object.keys(f.cobertura_por_anio);
     return {
       ...baseOpciones(),
-      grid: { left: 44, right: 12, top: 24, bottom: 32 },
+      grid: { left: 44, right: 12, top: 30, bottom: 32 },
       tooltip: { ...baseOpciones().tooltip, axisPointer: { type: "shadow", shadowStyle: { color: c.rejilla, opacity: .35 } },
         formatter: (ps) => `<b>${ps[0].axisValue}</b>${lineaTooltip(c[e.seleccionada], "Dentro del intervalo", fmt(ps[0].value, 0) + " %")}` },
       xAxis: { type: "category", data: lista, axisTick: { show: false }, axisLine: { lineStyle: { color: c.rejilla } }, axisLabel: { color: c.tinta2 } },
@@ -211,6 +222,7 @@ function pintarAnual(e, fila) {
       }],
     };
   };
+  document.getElementById("titulo-cobertura").textContent = `Cobertura del intervalo del 80 % (${e.seleccionada})`;
   const mae = crearGrafica(document.getElementById("grafica-mae"), construirMae);
   const cob = crearGrafica(document.getElementById("grafica-cobertura"), construirCobertura);
 }

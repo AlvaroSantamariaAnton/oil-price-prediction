@@ -5,52 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Brentcast · Datos y método</title>
   <meta name="description" content="Cómo se reconstruyó lo que se sabía cada mañana a las 09:00, por qué no se usó el CSV tal cual y cómo se organizaron los datos.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230b0b0b'/%3E%3Cpath d='M16 6c3.6 4.6 6.5 8.6 6.5 12.1A6.5 6.5 0 0 1 16 24.6a6.5 6.5 0 0 1-6.5-6.5C9.5 14.6 12.4 10.6 16 6z' fill='%23b5651d'/%3E%3C/svg%3E">
+  <meta property="og:title" content="Brentcast · Datos y método">
+  <meta property="og:description" content="Cómo se reconstruyó lo que se sabía cada mañana a las 09:00, por qué no se usó el CSV tal cual y cómo se organizaron los datos.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#f5f3ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d0d0c" media="(prefers-color-scheme: dark)">
+  <script>(function () { var t = "claro"; try { t = matchMedia("(prefers-color-scheme: dark)").matches ? "oscuro" : "claro"; t = localStorage.getItem("tema") || t; } catch (e) {} document.documentElement.dataset.tema = t; })();</script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2315140f'/%3E%3Cpath d='M16 6c3.6 4.6 6.5 8.6 6.5 12.1A6.5 6.5 0 0 1 16 24.6a6.5 6.5 0 0 1-6.5-6.5C9.5 14.6 12.4 10.6 16 6z' fill='%23d9812f'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/estilos.css">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
   <script src="js/comun.js" defer></script>
   <script src="js/datos.js" defer></script>
-</head>
-<body>
+</head><body>
 <main>
-  <section class="portada">
+  <section class="portada ancha">
     <div class="contenedor">
-      <p class="etiqueta">Datos y método</p>
-      <h1>Lo que se sabía a las 09:00</h1>
+      <p class="etiqueta">03 · Datos y método</p>
+      <h1>Lo que se sabía a las <em>09:00</em></h1>
       <p class="entradilla">Una previsión solo es honesta si usa la información que realmente estaba disponible cuando se hizo.
         Esta página explica cómo reconstruimos, para cada mañana desde el año 2000, qué datos se conocían, por qué no bastaba
         con el archivo de datos inicial y qué consecuencias tuvo esa decisión en los resultados.</p>
     </div>
   </section>
 
-  <section class="seccion" style="padding-top:8px">
+  <section class="seccion sin-linea ajustada">
     <div class="contenedor">
       <div class="cabecera-seccion"><div><p class="etiqueta">Punto de partida</p><h2>Por qué no usamos el CSV tal cual</h2></div></div>
       <div class="rejilla rejilla-3">
         <article class="tarjeta">
           <h3>Mezcla el futuro con el presente</h3>
-          <p class="mutado pequeno" style="margin:0">El archivo inicial une todas las fuentes por fecha y rellena los huecos con el
+          <p class="mutado pequeno">El archivo inicial une todas las fuentes por fecha y rellena los huecos con el
             último valor. En la fila de un día aparece el Brent spot <em>de ese mismo día</em>, pero ese precio no se publica hasta
             días después. Un modelo entrenado así «ve» información que, a la hora de predecir, aún no existía.</p>
         </article>
         <article class="tarjeta">
           <h3>Los retrasos son reales</h3>
-          <p class="mutado pequeno" style="margin:0">Lo comprobamos con el archivo de versiones de FRED (ALFRED), que guarda cuándo se
+          <p class="mutado pequeno">Lo comprobamos con el archivo de versiones de FRED (ALFRED), que guarda cuándo se
             publicó cada dato: el Brent spot tarda una mediana de 5 días hábiles en aparecer y 7 en el 95 % de los casos. El VIX
             llega en 1–2 días. Para los futuros de Yahoo no hay archivo de versiones; se asume que cada cierre se conoce al
             día siguiente.</p>
         </article>
         <article class="tarjeta">
           <h3>El relleno oculta la ausencia</h3>
-          <p class="mutado pequeno" style="margin:0">Rellenar hacia delante hace que un dato antiguo parezca de hoy y borra la
+          <p class="mutado pequeno">Rellenar hacia delante hace que un dato antiguo parezca de hoy y borra la
             diferencia entre «no hubo mercado» y «no hay dato». Nosotros conservamos esa diferencia: cada variable lleva un
             indicador de disponibilidad y una edad, y caduca si es demasiado antigua.</p>
         </article>
       </div>
-      <div class="aviso" style="margin-top:20px">
+      <div class="aviso" style="margin-top:22px">
         <p><strong>Decisión:</strong> descargar de nuevo cada fuente desde su origen (FRED/EIA, Yahoo Finance, la OPEP y el BCE),
           congelar una copia fija el 6 de noviembre de 2026 y reconstruir, fecha a fecha, lo que se habría conocido a las 09:00
           de Madrid. Es más trabajo y hace el problema más difícil, pero los resultados son creíbles.</p>
@@ -67,17 +72,17 @@
       </div>
       <div class="tabla-envoltura">
         <table>
-          <thead><tr><th>Variable</th><th>Fuente</th><th>Primer uso</th><th>Caducidad</th><th>Notas</th></tr></thead>
+          <thead><tr><th>Variable</th><th>Fuente</th><th>Primer uso</th><th>Caducidad</th><th class="texto">Notas</th></tr></thead>
           <tbody>
-            <tr><td>Brent spot (objetivo y entrada)</td><td>EIA vía FRED</td><td class="num">7 días</td><td class="num">10 días</td><td>Es el precio que se predice</td></tr>
+            <tr><td>Brent spot (objetivo y entrada)</td><td>EIA vía FRED</td><td class="num">7 días</td><td class="num">10 días</td><td class="texto">Es el precio que se predice</td></tr>
             <tr><td>WTI spot, gas natural Henry Hub</td><td>EIA vía FRED</td><td class="num">7 días</td><td class="num">10 días</td><td></td></tr>
             <tr><td>Dólares por euro, yuanes por dólar</td><td>Reserva Federal vía FRED</td><td class="num">7 días</td><td class="num">10 días</td><td></td></tr>
             <tr><td>VIX (volatilidad bursátil)</td><td>CBOE vía FRED</td><td class="num">2 días</td><td class="num">5 días</td><td></td></tr>
-            <tr><td>Tipo de depósito del BCE</td><td>Tabla oficial del BCE</td><td class="num">día siguiente</td><td>se mantiene</td><td>Vigente hasta el siguiente cambio</td></tr>
-            <tr><td>Futuros de Brent y WTI (apertura, máximo, mínimo, cierre)</td><td>Yahoo Finance</td><td class="num">1 día</td><td class="num">5 días</td><td>Brent desde julio de 2007</td></tr>
-            <tr><td>Volumen de los futuros</td><td>Yahoo Finance</td><td class="num">1 día</td><td class="num">1 día</td><td>Sin relleno</td></tr>
+            <tr><td>Tipo de depósito del BCE</td><td>Tabla oficial del BCE</td><td class="num">día siguiente</td><td class="num">se mantiene</td><td class="texto">Vigente hasta el siguiente cambio</td></tr>
+            <tr><td>Futuros de Brent y WTI (apertura, máximo, mínimo, cierre)</td><td>Yahoo Finance</td><td class="num">1 día</td><td class="num">5 días</td><td class="texto">Brent desde julio de 2007</td></tr>
+            <tr><td>Volumen de los futuros</td><td>Yahoo Finance</td><td class="num">1 día</td><td class="num">1 día</td><td class="texto">Sin relleno</td></tr>
             <tr><td>Cobre, oro, índice dólar</td><td>Yahoo Finance</td><td class="num">1 día</td><td class="num">5 días</td><td></td></tr>
-            <tr><td>Cesta de referencia de la OPEP</td><td>OPEP (XML)</td><td class="num">2 días</td><td class="num">5 días</td><td>Desde 2003</td></tr>
+            <tr><td>Cesta de referencia de la OPEP</td><td>OPEP (XML)</td><td class="num">2 días</td><td class="num">5 días</td><td class="texto">Desde 2003</td></tr>
           </tbody>
         </table>
       </div>
@@ -85,7 +90,7 @@
   </section>
 
   <section class="seccion">
-    <div class="contenedor dos-columnas">
+    <div class="contenedor dos-columnas centrada">
       <div class="columna-texto">
         <p class="etiqueta">La consecuencia más importante</p>
         <h2>La semana que le falta al precio spot</h2>
@@ -101,7 +106,7 @@
           <a href="resultados.html">Resultados</a>.</p>
       </div>
       <div class="tarjeta">
-        <p class="etiqueta">Último trimestre</p>
+        <p class="etiqueta">Spot y futuro en el último trimestre</p>
         <div class="leyenda" id="leyenda-hueco"></div>
         <div class="grafica" id="grafica-hueco" role="img" aria-label="Brent spot publicado frente al futuro de Brent en los últimos meses"></div>
         <p class="nota" id="nota-hueco"></p>
@@ -114,16 +119,16 @@
       <div class="cabecera-seccion"><div><p class="etiqueta">Cada muestra</p><h2>Qué ve la red y qué tiene que predecir</h2></div></div>
       <div class="rejilla rejilla-4">
         <article class="tarjeta"><p class="etiqueta">Calendario</p><p class="cifra-media">7.001</p>
-          <p class="mutado pequeno" style="margin:0">fechas del índice del Brent entre enero de 2000 y noviembre de 2026, incluidas
+          <p class="mutado pequeno">fechas del índice del Brent entre enero de 2000 y noviembre de 2026, incluidas
             500 sin precio. Los horizontes cuentan posiciones de este calendario.</p></article>
         <article class="tarjeta"><p class="etiqueta">Ventana</p><p class="cifra-media">60 × 42</p>
-          <p class="mutado pequeno" style="margin:0">60 fechas consecutivas y, en cada una, 21 variables con su valor escalado y su
+          <p class="mutado pequeno">60 fechas consecutivas y, en cada una, 21 variables con su valor escalado y su
             indicador de disponibilidad.</p></article>
-        <article class="tarjeta"><p class="etiqueta">Objetivo</p><p class="cifra-media">+5 · +63 · +252</p>
-          <p class="mutado pequeno" style="margin:0">el Brent spot exacto una semana, unos tres meses y un año después. Si ese día no
+        <article class="tarjeta"><p class="etiqueta">Objetivo</p><p class="cifra-media compacta">+5 · +63 · +252</p>
+          <p class="mutado pequeno">el Brent spot exacto una semana, unos tres meses y un año después. Si ese día no
             hay precio, la muestra se descarta solo para ese horizonte.</p></article>
         <article class="tarjeta"><p class="etiqueta">Etiqueta utilizable</p><p class="cifra-media">T + 7</p>
-          <p class="mutado pequeno" style="margin:0">el precio objetivo solo puede usarse para entrenar cuando ya se habría publicado:
+          <p class="mutado pequeno">el precio objetivo solo puede usarse para entrenar cuando ya se habría publicado:
             siete días hábiles después de la fecha objetivo.</p></article>
       </div>
     </div>
@@ -165,17 +170,17 @@
     <div class="contenedor">
       <div class="cabecera-seccion"><div><p class="etiqueta">Transformaciones</p><h2>Cómo se preparan las entradas</h2></div></div>
       <div class="rejilla rejilla-2">
-        <article class="tarjeta"><h3>Escalado sin mirar al futuro</h3><p class="mutado pequeno" style="margin:0">Cada variable se
+        <article class="tarjeta"><h3>Escalado sin mirar al futuro</h3><p class="mutado pequeno">Cada variable se
           estandariza (resta de la media y división por la desviación) con estadísticas calculadas <em>solo</em> con las fechas
           de aprendizaje de cada corte. Los datos ausentes se representan como (0, 0): valor neutro e indicador apagado.</p></article>
-        <article class="tarjeta"><h3>Precios como variaciones</h3><p class="mutado pequeno" style="margin:0">Las 17 variables de
+        <article class="tarjeta"><h3>Precios como variaciones</h3><p class="mutado pequeno">Las 17 variables de
           precio entran como variación logarítmica diaria en lugar de como nivel: un Brent a 70 dólares no significa lo mismo en
           2005 que en 2018, pero una subida del 2 % sí. Cuando el WTI cotizó en negativo (abril de 2020), esa variación se marca
           como ausente.</p></article>
-        <article class="tarjeta"><h3>Predecir el cambio, no el precio</h3><p class="mutado pequeno" style="margin:0">La red no estima
+        <article class="tarjeta"><h3>Predecir el cambio, no el precio</h3><p class="mutado pequeno">La red no estima
           el precio directamente, sino cuánto se desviará de un precio base. Con salida cero reproduce la referencia, así que
           solo tiene que aprender la corrección. Fue el primer cambio que mejoró los resultados.</p></article>
-        <article class="tarjeta"><h3>Base actualizada con futuros</h3><p class="mutado pequeno" style="margin:0">La base es el último
+        <article class="tarjeta"><h3>Base actualizada con futuros</h3><p class="mutado pequeno">La base es el último
           spot conocido actualizado con el futuro de Brent (antes de julio de 2007, cuando no había futuro, el spot). Así la red
           no gasta esfuerzo en «ponerse al día» y su aportación se mide frente a la referencia más exigente.</p></article>
       </div>
@@ -185,7 +190,7 @@
   <section class="seccion">
     <div class="contenedor">
       <div class="cabecera-seccion"><div><p class="etiqueta">De extremo a extremo</p><h2>El recorrido de los datos</h2></div></div>
-      <ol class="lista-clave" style="counter-reset:paso">
+      <ol class="pasos">
         <li><strong>Descarga.</strong> FRED, Yahoo Finance, el XML de la OPEP, la tabla del BCE y, para la auditoría, el
           archivo de versiones ALFRED. El estudio usa una copia congelada; la aplicación descarga de nuevo cada mañana.</li>
         <li><strong>Tabla de las 09:00.</strong> Para cada fecha del calendario del Brent, el valor admisible de cada variable,

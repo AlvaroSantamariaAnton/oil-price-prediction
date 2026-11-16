@@ -5,43 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Brentcast · Resultados del test</title>
   <meta name="description" content="Evaluación única de 2023 a 2026: las tres redes frente al ingenuo y frente al ingenuo con futuros.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230b0b0b'/%3E%3Cpath d='M16 6c3.6 4.6 6.5 8.6 6.5 12.1A6.5 6.5 0 0 1 16 24.6a6.5 6.5 0 0 1-6.5-6.5C9.5 14.6 12.4 10.6 16 6z' fill='%23b5651d'/%3E%3C/svg%3E">
+  <meta property="og:title" content="Brentcast · Resultados del test">
+  <meta property="og:description" content="Evaluación única de 2023 a 2026: las tres redes frente al ingenuo y frente al ingenuo con futuros.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#f5f3ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d0d0c" media="(prefers-color-scheme: dark)">
+  <script>(function () { var t = "claro"; try { t = matchMedia("(prefers-color-scheme: dark)").matches ? "oscuro" : "claro"; t = localStorage.getItem("tema") || t; } catch (e) {} document.documentElement.dataset.tema = t; })();</script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2315140f'/%3E%3Cpath d='M16 6c3.6 4.6 6.5 8.6 6.5 12.1A6.5 6.5 0 0 1 16 24.6a6.5 6.5 0 0 1-6.5-6.5C9.5 14.6 12.4 10.6 16 6z' fill='%23d9812f'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/estilos.css">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
   <script src="js/comun.js" defer></script>
   <script src="js/resultados.js" defer></script>
-</head>
-<body>
+</head><body>
 <main>
-  <section class="portada">
+  <section class="portada ancha">
     <div class="contenedor">
-      <p class="etiqueta">Resultados del test</p>
-      <h1>El examen final: 2023–2026</h1>
+      <p class="etiqueta">05 · Resultados del test</p>
+      <h1>El examen final: <em>2023–2026</em></h1>
       <p class="entradilla">Con todo decidido en validación, se entrenaron los modelos finales con los datos conocidos el 2 de
         enero de 2023 y se evaluaron <strong>una sola vez</strong> sobre casi cuatro años que nunca habían visto. Cada red es la
         media de tres semillas, y se compara con dos referencias: el ingenuo del enunciado y el ingenuo con futuros.</p>
     </div>
   </section>
 
-  <section class="contenedor" style="margin-bottom:28px">
-    <div class="rejilla rejilla-2" id="referencias"></div>
+  <section class="seccion sin-linea ajustada">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div><p class="etiqueta">En pocas cifras</p><h2>El resultado, horizonte a horizonte</h2></div>
+      </div>
+      <div class="rejilla rejilla-3" id="kpis"></div>
+      <div class="aviso" style="margin-top:22px" id="veredicto"></div>
+    </div>
   </section>
 
-  <section class="contenedor">
-    <div class="rejilla rejilla-3" id="kpis"></div>
-    <div class="aviso" style="margin-top:20px" id="veredicto"></div>
+  <section class="seccion">
+    <div class="contenedor">
+      <div class="cabecera-seccion">
+        <div><p class="etiqueta">Con qué se compara</p><h2>Las dos referencias</h2></div>
+        <p class="mutado pequeno">Dos reglas que no necesitan entrenamiento. Una red solo aporta algo si las mejora.</p>
+      </div>
+      <div class="rejilla rejilla-2" id="referencias"></div>
+    </div>
   </section>
 
   <section class="seccion">
     <div class="contenedor">
       <div class="cabecera-seccion">
         <div><p class="etiqueta">Las previsiones</p><h2>Precio real frente a previsto</h2></div>
-        <div class="controles" style="margin:0">
-          <div id="selector-h-serie"></div>
-        </div>
+        <div id="selector-h-serie" aria-label="Horizonte"></div>
       </div>
       <div class="tarjeta">
         <div class="controles casillas" id="casillas-serie"></div>
@@ -55,7 +69,7 @@
     <div class="contenedor">
       <div class="cabecera-seccion">
         <div><p class="etiqueta">Quién gana y cuándo</p><h2>Error acumulado frente al ingenuo</h2></div>
-        <div id="selector-h-acumulado"></div>
+        <div id="selector-h-acumulado" aria-label="Horizonte"></div>
       </div>
       <div class="dos-columnas">
         <div class="tarjeta">
@@ -80,7 +94,7 @@
     <div class="contenedor">
       <div class="cabecera-seccion">
         <div><p class="etiqueta">La tabla completa</p><h2>Métricas del test por horizonte</h2></div>
-        <div id="selector-h-tabla"></div>
+        <div id="selector-h-tabla" aria-label="Horizonte"></div>
       </div>
       <div class="tabla-envoltura" id="tabla-test"></div>
       <p class="nota">Mejora = reducción del error absoluto medio (MAE) respecto a la referencia, con todos los orígenes de test
@@ -94,7 +108,7 @@
     <div class="contenedor">
       <div class="cabecera-seccion">
         <div><p class="etiqueta">Año a año</p><h2>Error medio y cobertura del intervalo</h2></div>
-        <div id="selector-h-anual"></div>
+        <div id="selector-h-anual" aria-label="Horizonte"></div>
       </div>
       <div class="rejilla rejilla-2">
         <div class="tarjeta">
@@ -102,7 +116,7 @@
           <div class="grafica" id="grafica-mae" role="img" aria-label="Error absoluto medio por año y predictor"></div>
         </div>
         <div class="tarjeta">
-          <h3>Cobertura del intervalo del 80 % (RNN)</h3>
+          <h3 id="titulo-cobertura">Cobertura del intervalo del 80 %</h3>
           <div class="grafica" id="grafica-cobertura" role="img" aria-label="Porcentaje de precios dentro del intervalo por año"></div>
         </div>
       </div>
@@ -135,7 +149,7 @@
     <div class="contenedor">
       <div class="cabecera-seccion"><div><p class="etiqueta">Conclusiones</p><h2>Lo que nos llevamos</h2></div></div>
       <div class="rejilla rejilla-2">
-        <article class="tarjeta">
+        <article class="tarjeta linea" style="--color-linea:var(--rnn)">
           <h3>Resultados</h3>
           <ul class="lista-clave">
             <li><strong>A una semana, las redes mejoran al ingenuo del enunciado alrededor de un 19 %</strong>, con evidencia
@@ -147,7 +161,7 @@
               preparan los datos y qué se le pide predecir a la red.</li>
           </ul>
         </article>
-        <article class="tarjeta">
+        <article class="tarjeta linea">
           <h3>Limitaciones</h3>
           <ul class="lista-clave">
             <li><strong>Reconstrucción aproximada.</strong> Los retrasos de publicación se fijaron con una auditoría del archivo

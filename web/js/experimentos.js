@@ -33,7 +33,15 @@ const PASOS = {
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const estudio = await cargarJSON(URL_ESTUDIO);
+  let estudio;
+  try {
+    estudio = await cargarJSON(URL_ESTUDIO);
+  } catch (e) {
+    mostrarError(document.getElementById("referencias"), "No se han podido cargar los datos del estudio.");
+    for (const id of ["grafica-familias", "grafica-antes"]) document.getElementById(id).style.height = "auto";
+    document.getElementById("tabla-final").outerHTML = `<p class="nota">Datos no disponibles.</p>`;
+    return;
+  }
   pintarReferencias(document.getElementById("referencias"), {
     futuros: ` En validación, esta regla por sí sola mejora al ingenuo un ${fmt(estudio.referencia_futuros_validacion.global, 1)} % con la misma puntuación que las redes.`,
   });
@@ -54,29 +62,30 @@ function pintarFamilias(e) {
   };
   const actualizarTexto = () => {
     document.getElementById("explicacion-referencia").textContent = textos[referencia];
-    const barras = ["RNN", "LSTM", "GRU"].map((a) => `<span><i style="background:${VAR[a]};height:10px"></i>${a}</span>`).join("");
+    const barras = ["RNN", "LSTM", "GRU"].map((a) => `<span><i class="banda" style="background:${VAR[a]};opacity:1"></i>${a}</span>`).join("");
     document.getElementById("leyenda-familias").innerHTML = barras +
       `<span><i style="background:${VAR.tinta3}"></i>${referencia === "ingenuo" ? "Ingenuo" : "Ingenuo con futuros"} (0 %)</span>`;
   };
   actualizarTexto();
-  const etiquetas = e.familias.map((f) => f.experimentos.replace("_", " + "));
+  // En el eje, las familias combinadas ocupan dos líneas para que no se solapen en pantallas estrechas.
+  const etiquetas = e.familias.map((f) => f.experimentos.replaceAll("-", "–").replace("_", "\n+ "));
   const construir = () => {
     const c = colores();
     const campo = referencia === "ingenuo" ? "puntuacion" : "frente_futuros";
     return {
       ...baseOpciones(),
-      grid: { left: 52, right: 20, top: 24, bottom: 56 },
+      grid: { left: 52, right: 20, top: 38, bottom: 52 },
       tooltip: {
         ...baseOpciones().tooltip, axisPointer: { type: "shadow", shadowStyle: { color: c.rejilla, opacity: .35 } },
-        formatter: (ps) => `<b>${ps[0].axisValue}</b><div style="color:${c.tinta3};margin:2px 0 6px">${PASOS[e.familias[ps[0].dataIndex].id].titulo}</div>` +
+        formatter: (ps) => `<b>${String(ps[0].axisValue).replace("\n", " ")}</b><div style="color:${c.tinta3};margin:2px 0 6px">${PASOS[e.familias[ps[0].dataIndex].id]?.titulo || ""}</div>` +
           ps.filter((p) => p.seriesType === "bar").map((p) => lineaTooltip(p.color, p.seriesName, fmtPct(p.value))).join(""),
       },
-      xAxis: { type: "category", data: etiquetas, axisTick: { show: false }, axisLine: { lineStyle: { color: c.rejilla } }, axisLabel: { color: c.tinta2, fontWeight: 600, interval: 0 } },
+      xAxis: { type: "category", data: etiquetas, axisTick: { show: false }, axisLine: { lineStyle: { color: c.rejilla } }, axisLabel: { color: c.tinta2, fontWeight: 600, interval: 0, fontSize: 11.5, lineHeight: 15 } },
       yAxis: ejeValor({ name: "%", scale: false }),
       series: [
         ...["RNN", "LSTM", "GRU"].map((a, i) => ({
           name: a, type: "bar", barGap: "12%", barCategoryGap: "32%", data: e.familias.map((f) => f.arquitecturas[a][campo]),
-          itemStyle: { color: c[a], borderRadius: [4, 4, 0, 0] },
+          itemStyle: { color: c[a], borderRadius: 4 },
           markLine: i > 0 ? undefined : {
             silent: true, symbol: "none",
             data: [{ yAxis: 0, lineStyle: { color: c.tinta3, width: 1, type: "solid" }, label: { show: false } }],
@@ -90,19 +99,19 @@ function pintarFamilias(e) {
 
 function pintarRecorrido(e) {
   document.getElementById("recorrido").innerHTML = e.familias.map((f) => {
-    const paso = PASOS[f.id];
+    const paso = PASOS[f.id] || { titulo: f.experimentos, motivo: "", cambio: "", leccion: "" };
     const mejor = f.arquitecturas[f.principal];
     return `<article class="tarjeta paso ${paso.elegido ? "elegido" : ""} ${paso.descartado ? "descartado" : ""}">
-      <div class="codigo">${f.experimentos.replace("_", " + ")}<small>${f.semillas === 1 ? "una semilla" : "tres semillas"}</small></div>
+      <div class="codigo">${f.experimentos.replaceAll("-", "–").replace("_", " + ")}<small>${f.semillas === 1 ? "una semilla" : "tres semillas"}</small></div>
       <div>
         <h3>${paso.titulo}</h3>
         <p><strong>${paso.motivo}</strong> ${paso.cambio}</p>
         <p>${paso.leccion}</p>
       </div>
       <div class="resultado">
-        <span class="chip ${paso.elegido ? "acento" : ""}">${paso.elegido ? "Seleccionada · " : paso.descartado ? "Descartada · " : ""}${f.principal}</span>
-        <div class="cifra-media num ${claseSigno(mejor.puntuacion)}" style="margin-top:10px">${fmtPct(mejor.puntuacion, 2)}</div>
-        <div class="pequeno mutado num">(${fmtPct(mejor.frente_futuros, 2)} con futuros)</div>
+        <span class="chip ${paso.elegido ? "exito" : ""}">${paso.elegido ? "Seleccionada · " : paso.descartado ? "Descartada · " : ""}${f.principal}</span>
+        <div class="cifra-media num ${claseSigno(mejor.puntuacion)}">${fmtPct(mejor.puntuacion, 2)}</div>
+        <div class="pequeno mutado num">${fmtPct(mejor.frente_futuros, 2)} frente al ingenuo con futuros</div>
       </div>
     </article>`;
   }).join("");
@@ -135,16 +144,16 @@ function pintarAntesDespues(e) {
     };
     return {
       ...baseOpciones(),
-      grid: { left: 52, right: 20, top: 24, bottom: 40 },
+      grid: { left: 52, right: 20, top: 38, bottom: 40 },
       tooltip: {
         ...baseOpciones().tooltip,
-        formatter: (ps) => `<div style="color:${c.tinta3};margin-bottom:4px">Objetivo: ${fmtFecha(String(ps[0].value[0]).slice(0, 10))}</div>` +
-          ps.filter((x) => x.value[1] != null).map((x) => lineaTooltip(x.color, x.seriesName, fmtUSD(x.value[1]))).join(""),
+        formatter: (ps) => ps.length ? cabeceraTooltip(`Objetivo: ${fmtFecha(String(ps[0].value[0]))}`, c.tinta3) +
+          ps.filter((x) => x.value[1] != null).map((x) => lineaTooltip(x.color, x.seriesName, fmtUSD(x.value[1]))).join("") : "",
       },
       xAxis: ejeTiempo(),
       yAxis: ejeValor({ name: "USD/barril" }),
       series: [
-        { name: "Brent real", type: "line", data: pares(b, "real"), showSymbol: false, lineStyle: { width: 1.6, color: c.real }, itemStyle: { color: c.real }, connectNulls: false },
+        { name: "Brent real", type: "line", data: pares(b, "real"), showSymbol: false, lineStyle: { width: 1.6, color: c.real }, itemStyle: { color: c.real }, connectNulls: false, areaStyle: areaDegradada(c.real, .07) },
         { name: "E1 · precio", type: "line", data: porAnio(a, "red"), showSymbol: false, lineStyle: { width: 1.6, color: c.ingenuo }, itemStyle: { color: c.ingenuo } },
         { name: "E14–E16 · seleccionada", type: "line", data: porAnio(b, "red"), showSymbol: false, lineStyle: { width: 1.6, color: c.RNN }, itemStyle: { color: c.RNN } },
       ],
@@ -164,5 +173,5 @@ function pintarTablaFinal(e) {
   document.getElementById("tabla-final").outerHTML = `<div class="tabla-envoltura"><table>
     <thead><tr><th>Red</th><th>Unidades</th><th>Frente al ingenuo</th><th>Frente al ingenuo con futuros</th><th>Años y horizontes con mejora</th></tr></thead>
     <tbody>${filas}</tbody></table></div>
-    <p class="nota">Unidades a una semana / tres meses / un año. El ingenuo con futuros obtiene +${fmt(e.referencia_futuros_validacion.global, 2)} % frente al ingenuo con la misma regla.</p>`;
+    <p class="nota">Unidades a una semana / tres meses / un año. El ingenuo con futuros obtiene ${fmtPct(e.referencia_futuros_validacion.global, 2)} frente al ingenuo con la misma regla.</p>`;
 }
